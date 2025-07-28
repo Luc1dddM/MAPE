@@ -1,0 +1,13 @@
+.env
+.env.local
+node_modules/
+.next/
+dist/
+build/
+*.log
+.DS_Store
+.vscode/
+.idea/
+coverage/
+*.tgz
+*.tar.gz
