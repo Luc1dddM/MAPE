@@ -103,7 +103,7 @@ export const PromptGenerationForm: React.FC<PromptGenerationFormProps> = ({
             {...register('expectedOutput', { 
               required: 'Expected output is required',
               minLength: { value: 5, message: 'Expected output must be at least 5 characters' },
-              maxLength: { value: 1000, message: 'Expected output must not exceed 1000 characters' }
+              maxLength: { value: 8000, message: 'Expected output must not exceed 8000 characters' }
             })}
           />
           {errors.expectedOutput && (
