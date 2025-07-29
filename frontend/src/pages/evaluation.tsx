@@ -8,7 +8,8 @@ import { evaluationService } from '@/services/api';
 import { 
   EvaluationSummary, 
   EvaluationResult, 
-  EvaluationMetadata 
+  EvaluationMetadata,
+  ErrorClusteringResults
 } from '@/types/api';
 
 // Define EvaluationStatus type locally since it's not exported
@@ -25,36 +26,37 @@ interface EvaluationStatus {
 export default function EvaluationPage() {
   const [selectedTab, setSelectedTab] = useState(0);
   const [currentEvaluationId, setCurrentEvaluationId] = useState<string | null>(null);
+  const [currentEvaluationResults, setCurrentEvaluationResults] = useState<{
+    summary: EvaluationSummary;
+    results: EvaluationResult[];
+    metadata: EvaluationMetadata;
+    evaluationId: string;
+    configPath: string;
+    timestamp: string;
+    errorClusters?: ErrorClusteringResults;
+  } | null>(null);
+
+  const handleEvaluationStart = (evaluationData: {
+    summary: EvaluationSummary;
+    results: EvaluationResult[];
+    metadata: EvaluationMetadata;
+    evaluationId: string;
+    configPath: string;
+    timestamp: string;
+    errorClusters?: ErrorClusteringResults;
+  }) => {
+    setCurrentEvaluationId(evaluationData.evaluationId);
+    setCurrentEvaluationResults(evaluationData);
+    setSelectedTab(1); // Switch to status tab
+  };
+
+  console.log('Current Evaluation ID:', currentEvaluationResults);
 
   // Query for evaluation list
-  const { data: evaluations = [], refetch: refetchEvaluations } = useQuery({
+  const { data: evaluations = [] } = useQuery({
     queryKey: ['evaluations'],
     queryFn: () => evaluationService.listEvaluations(),
   });
-
-  // Query for current evaluation status
-  const { data: evaluationStatus } = useQuery({
-    queryKey: ['evaluation-status', currentEvaluationId],
-    queryFn: () => currentEvaluationId ? evaluationService.getEvaluationStatus(currentEvaluationId) : null,
-    enabled: !!currentEvaluationId,
-    refetchInterval: (data: any) => {
-      // Refetch every 2 seconds if evaluation is running
-      return data?.status === 'running' ? 2000 : false;
-    },
-  });
-
-  // Query for evaluation results
-  const { data: evaluationResults } = useQuery({
-    queryKey: ['evaluation-results', currentEvaluationId],
-    queryFn: () => currentEvaluationId ? evaluationService.getEvaluation(currentEvaluationId) : null,
-    enabled: !!currentEvaluationId && evaluationStatus?.status === 'completed',
-  });
-
-  const handleEvaluationStart = (evaluationId: string) => {
-    setCurrentEvaluationId(evaluationId);
-    setSelectedTab(1); // Switch to status tab
-    refetchEvaluations();
-  };
 
   const tabs = [
     { name: 'New Evaluation', component: 'form' },
@@ -101,8 +103,8 @@ export default function EvaluationPage() {
               {currentEvaluationId ? (
                 <EvaluationStatusView
                   evaluationId={currentEvaluationId}
-                  status={evaluationStatus}
-                  results={evaluationResults}
+                  status={null}
+                  results={currentEvaluationResults}
                 />
               ) : (
                 <Card className="text-center py-12">
@@ -123,7 +125,7 @@ export default function EvaluationPage() {
             {/* History Tab */}
             <Tab.Panel>
               <EvaluationHistory
-                evaluations={evaluations}
+                evaluations={Array.isArray(evaluations) ? evaluations : (evaluations?.data?.evaluations || [])}
                 onSelectEvaluation={(id) => {
                   setCurrentEvaluationId(id);
                   setSelectedTab(1);
@@ -144,6 +146,10 @@ interface EvaluationStatusViewProps {
     summary: EvaluationSummary;
     results: EvaluationResult[];
     metadata: EvaluationMetadata;
+    evaluationId: string;
+    configPath: string;
+    timestamp: string;
+    errorClusters?: ErrorClusteringResults;
   } | null;
 }
 
@@ -152,6 +158,42 @@ const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
   status,
   results
 }) => {
+  // If we have results, show them immediately (evaluation completed)
+  if (results) {
+    return (
+      <div className="space-y-6">
+        {/* Status Card */}
+        <Card title="Evaluation Status">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <StatusBadge status="completed" />
+              <span className="text-gray-900 font-medium">
+                Evaluation {evaluationId.slice(0, 8)}...
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
+            <p className="text-green-800 text-sm font-medium">Evaluation Completed</p>
+            <p className="text-green-700 text-sm mt-1">
+              Results are ready for review below.
+            </p>
+          </div>
+        </Card>
+
+        {/* Results */}
+        <EvaluationResults
+          summary={results.summary}
+          results={results.results}
+          metadata={results.metadata}
+          evaluationId={evaluationId}
+          errorClusters={results.errorClusters}
+        />
+      </div>
+    );
+  }
+
+  // Fallback to status loading/polling
   if (!status) {
     return (
       <Card className="text-center py-8">
@@ -201,17 +243,16 @@ const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
             <p className="text-red-700 text-sm mt-1">{status.error}</p>
           </div>
         )}
-      </Card>
 
-      {/* Results */}
-      {results && status.status === 'completed' && (
-        <EvaluationResults
-          summary={results.summary}
-          results={results.results}
-          metadata={results.metadata}
-          evaluationId={evaluationId}
-        />
-      )}
+        {status.status === 'completed' && (
+          <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
+            <p className="text-green-800 text-sm font-medium">Evaluation Completed</p>
+            <p className="text-green-700 text-sm mt-1">
+              Results are ready for review below.
+            </p>
+          </div>
+        )}
+      </Card>
     </div>
   );
 };
@@ -219,9 +260,10 @@ const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
 interface EvaluationHistoryProps {
   evaluations: Array<{
     id: string;
-    status: EvaluationStatus['status'];
+    filename?: string;
     createdAt: string;
-    summary?: EvaluationSummary;
+    modifiedAt?: string;
+    size?: number;
   }>;
   onSelectEvaluation: (id: string) => void;
 }
@@ -252,10 +294,10 @@ const EvaluationHistory: React.FC<EvaluationHistoryProps> = ({
           <Card>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <StatusBadge status={evaluation.status} />
+                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
                 <div>
                   <p className="font-medium text-gray-900">
-                    {evaluation.id.slice(0, 8)}...
+                    Evaluation {evaluation.id.slice(0, 8)}...
                   </p>
                   <p className="text-sm text-gray-600">
                     {new Date(evaluation.createdAt).toLocaleString()}
@@ -263,16 +305,14 @@ const EvaluationHistory: React.FC<EvaluationHistoryProps> = ({
                 </div>
               </div>
               
-              {evaluation.summary && (
-                <div className="text-right">
-                  <p className="text-sm font-medium text-gray-900">
-                    Score: {evaluation.summary.averageScore.toFixed(1)}%
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {evaluation.summary.passedTests}/{evaluation.summary.totalTests} passed
-                  </p>
-                </div>
-              )}
+              <div className="text-right text-sm text-gray-600">
+                {evaluation.filename && (
+                  <p className="font-mono">{evaluation.filename}</p>
+                )}
+                {evaluation.size && (
+                  <p>{(evaluation.size / 1024).toFixed(1)} KB</p>
+                )}
+              </div>
             </div>
           </Card>
         </div>
@@ -282,11 +322,13 @@ const EvaluationHistory: React.FC<EvaluationHistoryProps> = ({
 };
 
 interface StatusBadgeProps {
-  status: EvaluationStatus['status'];
+  status: EvaluationStatus['status'] | undefined;
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | undefined) => {
+    if (!status) return 'bg-gray-100 text-gray-800';
+    
     switch (status) {
       case 'completed':
         return 'bg-green-100 text-green-800';
@@ -303,7 +345,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
 
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
-      {status.charAt(0).toUpperCase() + status.slice(1)}
+      {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown'}
     </span>
   );
 };

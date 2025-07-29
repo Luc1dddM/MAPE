@@ -196,7 +196,7 @@ export interface Provider {
 
 export interface TestCase {
   description: string;
-  input?: Record<string, any>;
+  input?: string;
   expectedOutput?: string;
 }
 
@@ -218,13 +218,58 @@ export interface AssertionResult {
   metric: string;
 }
 
-export interface EvaluationResult {
+export interface ErrorCluster {
   id: number;
+  size: number;
+  tests: Array<EvaluationResult & {
+    errorText: string;
+    similarity: number;
+  }>;
+  representativeError: string;
+  avgSimilarity: number;
+  category: {
+    name: string;
+    description: string;
+    commonPatterns: string[];
+    suggestions: string[];
+  };
+}
+
+export interface ErrorClusteringSummary {
+  totalFailed: number;
+  clustersFound: number;
+  analysisTime: string;
+  avgClusterSize?: number;
+  error?: string;
+}
+
+export interface ErrorClusteringResults {
+  clusters: ErrorCluster[];
+  summary: ErrorClusteringSummary;
+  insights: string;
+  errorAnalysis?: {
+    categories: Array<{
+      name: string;
+      description: string;
+      errorIndices: number[];
+      commonPatterns: string[];
+      suggestions: string[];
+    }>;
+    insights: string;
+  };
+}
+
+export interface EvaluationResult {
+  id: string;
   prompt: string;
   response: string;
   score: number;
-  passed: boolean;
-  assertions: AssertionResult[];
+  success: boolean;
+  vars: Array<{
+    query: string;
+    expectedAnswer?: string;
+  }>;
+  error?: string;
 }
 
 export interface EvaluationSummary {
@@ -237,19 +282,21 @@ export interface EvaluationSummary {
 
 export interface EvaluationMetadata {
   prompts: string[];
-  providers: Provider[];
-  createdAt: string;
+  providers: string[];
+  timestamp: string;
+  version: string;
 }
 
 export interface EvaluationResponse {
   success: boolean;
   data: {
     evaluationId: string;
-    configPath?: string;
+    configPath: string;
     timestamp: string;
     summary: EvaluationSummary;
     results: EvaluationResult[];
     metadata: EvaluationMetadata;
+    errorClusters?: ErrorClusteringResults;
   };
 }
 

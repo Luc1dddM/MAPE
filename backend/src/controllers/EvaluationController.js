@@ -27,8 +27,8 @@ class EvaluationController {
 
       console.log('Evaluation result:', JSON.stringify(result, null, 2));
       
-      // Format results for UI
-      const formattedResults = this.evaluationService.formatResultsForUI(result.results);
+      // Format results for UI (không cần format lại vì đã có error clusters)
+      // const formattedResults = this.evaluationService.formatResultsForUI(result.results);
 
       res.status(200).json({
         success: true,
@@ -36,7 +36,10 @@ class EvaluationController {
           evaluationId: result.evaluationId,
           configPath: result.configPath,
           timestamp: result.timestamp,
-          ...formattedResults
+          summary: result.results.summary,
+          results: result.results.results,
+          metadata: result.results.metadata,
+          errorClusters: result.results.errorClusters
         }
       });
 
@@ -58,13 +61,16 @@ class EvaluationController {
       logger.info(`Getting evaluation results for ID: ${evaluationId}`);
       
       const results = await this.evaluationService.getEvaluationResults(evaluationId);
-      const formattedResults = this.evaluationService.formatResultsForUI(results);
+      // const formattedResults = this.evaluationService.formatResultsForUI(results);
 
       res.status(200).json({
         success: true,
         data: {
           evaluationId,
-          ...formattedResults
+          summary: results.summary,
+          results: results.results,
+          metadata: results.metadata,
+          errorClusters: results.errorClusters
         }
       });
 

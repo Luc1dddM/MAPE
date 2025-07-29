@@ -1,10 +1,20 @@
-import React, { useState } from "react";
-import { useForm, useFieldArray } from "react-hook-form";
-import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/Button";
-import { Card, Badge } from "@/components/ui";
-import { evaluationService } from "@/services/api";
-import { PromptfooEvaluationRequest, EvaluationCriteria } from "@/types/api";
+import React, { useState } from 'react';
+import { useForm, useFieldArray } from 'react-hook-form';
+import { useQuery } from '@tanstack/react-query';
+import { Button } from '@/components/ui/Button';
+import { Card, Badge } from '@/components/ui';
+import { evaluationService } from '@/services/api';
+import {
+  PromptfooEvaluationRequest,
+  EvaluationCriteria,
+  Provider,
+  TestCase,
+  EvaluationSummary,
+  EvaluationResult,
+  EvaluationMetadata,
+  ErrorClusteringResults
+} from '@/types/api';
+
 
 // Form data interface
 interface EvaluationFormData {
@@ -32,7 +42,15 @@ interface EvaluationFormData {
 }
 
 interface EvaluationFormProps {
-  onEvaluationStart: (evaluationId: string) => void;
+  onEvaluationStart: (evaluationData: {
+    summary: EvaluationSummary;
+    results: EvaluationResult[];
+    metadata: EvaluationMetadata;
+    evaluationId: string;
+    configPath: string;
+    timestamp: string;
+    errorClusters?: ErrorClusteringResults;
+  }) => void;
 }
 
 export const EvaluationForm: React.FC<EvaluationFormProps> = ({
@@ -124,6 +142,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
   }, [criteriaData, setValue]);
 
   const onSubmit = async (data: EvaluationFormData) => {
+    console.log('Submitting evaluation data:', data.testCases);
     setIsSubmitting(true);
     console.log("Submitting evaluation data:", data);
     try {
@@ -148,8 +167,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
         prompts: data.prompts.map((p: any) => p.content),
         testCases: data.testCases.map((tc: any) => ({
           input: tc.input,
-          expected: tc.expected,
-          description: tc.description,
+          expectedOutput: tc.expected,
         })),
         providers: selectedProviders,
         evaluationCriteria: selectedCriteria,
@@ -157,8 +175,17 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
 
       const response = await evaluationService.runEvaluation(request);
 
-      if (response.success && response.data.evaluationId) {
-        onEvaluationStart(response.data.evaluationId);
+      if (response.success && response.data) {
+        // Pass the complete evaluation data
+        onEvaluationStart({
+          summary: response.data.summary,
+          results: response.data.results,
+          metadata: response.data.metadata,
+          evaluationId: response.data.evaluationId,
+          configPath: response.data.configPath,
+          timestamp: response.data.timestamp,
+          errorClusters: response.data.errorClusters,
+        });
       }
     } catch (error) {
       console.error("Failed to start evaluation:", error);
@@ -216,11 +243,10 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.id
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-              }`}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
             >
               {tab.label}
               {tab.count > 0 && (

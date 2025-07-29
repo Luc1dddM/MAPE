@@ -22,11 +22,22 @@
     "fs-extra": "^11.3.0",
     "helmet": "^7.1.0",
     "joi": "^17.11.0",
+    "ml-kmeans": "^6.0.0",
     "promptfoo": "^0.117.3",
     "redis": "^4.6.12",
     "uuid": "^9.0.1",
     "winston": "^3.11.0",
     "yaml": "^2.8.0"
+  },
+  "nodemonConfig": {
+    "watch": [
+      "src"
+    ],
+    "ignore": [
+      "evaluation-results/**/*",
+      "*.json"
+    ],
+    "ext": "js"
   },
   "devDependencies": {
     "eslint": "^8.56.0",

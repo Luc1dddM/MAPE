@@ -2,287 +2,283 @@ import React, { useState } from 'react';
 import { Card, Badge, CopyButton } from '@/components/ui';
 import { Button } from '@/components/ui/Button';
 import { evaluationService } from '@/services/api';
-import { 
-  EvaluationResult, 
-  EvaluationSummary, 
+import ErrorClusteringView from './ErrorClusteringView';
+import {
+  EvaluationResult,
+  EvaluationSummary,
   EvaluationMetadata,
-  AssertionResult 
+  ErrorClusteringResults
 } from '@/types/api';
+import toast from 'react-hot-toast';
 
 interface EvaluationResultsProps {
   summary: EvaluationSummary;
   results: EvaluationResult[];
   metadata: EvaluationMetadata;
   evaluationId: string;
+  errorClusters?: ErrorClusteringResults;
 }
 
 export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
   summary,
   results,
   metadata,
-  evaluationId
+  evaluationId,
+  errorClusters
 }) => {
-  const [isDownloading, setIsDownloading] = useState(false);
+  const [activeTab, setActiveTab] = useState<'results' | 'clusters'>('results');
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-success-600';
-    if (score >= 60) return 'text-warning-600';
-    return 'text-error-600';
-  };
-
-  const getScoreBadgeVariant = (score: number): 'success' | 'warning' | 'error' => {
-    if (score >= 80) return 'success';
-    if (score >= 60) return 'warning';
-    return 'error';
-  };
-
-  const handleDownload = async (format: 'json' | 'csv') => {
+  const handleDownload = async () => {
     try {
-      setIsDownloading(true);
-      const blob = await evaluationService.downloadEvaluation(evaluationId, format);
-      
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      link.download = `evaluation-${evaluationId}-${timestamp}.${format}`;
-      
-      document.body.appendChild(link);
-      link.click();
-      
-      // Cleanup
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Download failed:', error);
-      alert('Failed to download evaluation results. Please try again.');
-    } finally {
-      setIsDownloading(false);
+      await evaluationService.downloadEvaluation(evaluationId);
+      toast.success('Results downloaded successfully!');
+    } catch (error: any) {
+      toast.error(`Failed to download results: ${error.message}`);
     }
   };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Evaluation Results</h2>
-          <p className="text-gray-600 mt-1">
-            Evaluation ID: {evaluationId} • {new Date(metadata.createdAt).toLocaleString()}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-2">
-            <Button
-              onClick={() => handleDownload('json')}
-              disabled={isDownloading}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              {isDownloading ? (
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              )}
-              JSON
-            </Button>
-            <Button
-              onClick={() => handleDownload('csv')}
-              disabled={isDownloading}
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              {isDownloading ? (
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-              ) : (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              )}
-              CSV
-            </Button>
+      {/* Summary Card */}
+      <Card title="Evaluation Summary">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="text-center">
+            <div className="text-2xl font-bold text-blue-600">{summary.totalTests}</div>
+            <div className="text-sm text-gray-600">Total Tests</div>
           </div>
-          <CopyButton text={evaluationId} />
-        </div>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="text-center">
-          <div className="text-2xl font-bold text-gray-900">{summary.totalTests}</div>
-          <div className="text-sm text-gray-600">Total Tests</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className="text-2xl font-bold text-success-600">{summary.passedTests}</div>
-          <div className="text-sm text-gray-600">Passed</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className="text-2xl font-bold text-error-600">{summary.failedTests}</div>
-          <div className="text-sm text-gray-600">Failed</div>
-        </Card>
-        
-        <Card className="text-center">
-          <div className={`text-2xl font-bold ${getScoreColor(summary.averageScore)}`}>
-            {summary.averageScore.toFixed(1)}%
+          <div className="text-center">
+            <div className="text-2xl font-bold text-green-600">{summary.passedTests}</div>
+            <div className="text-sm text-gray-600">Passed</div>
           </div>
-          <div className="text-sm text-gray-600">Average Score</div>
-        </Card>
-      </div>
-
-      {/* Metadata */}
-      <Card title="Configuration">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">Prompts ({metadata.prompts.length})</h4>
-            <div className="space-y-2">
-              {metadata.prompts.slice(0, 3).map((prompt, index) => (
-                <div key={index} className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
-                  {prompt.length > 100 ? `${prompt.substring(0, 100)}...` : prompt}
-                </div>
-              ))}
-              {metadata.prompts.length > 3 && (
-                <p className="text-sm text-gray-500">
-                  +{metadata.prompts.length - 3} more prompts
-                </p>
-              )}
+          <div className="text-center">
+            <div className="text-2xl font-bold text-red-600">{summary.failedTests}</div>
+            <div className="text-sm text-gray-600">Failed</div>
+          </div>
+          <div className="text-center">
+            <div className="text-2xl font-bold text-purple-600">
+              {summary.averageScore.toFixed(1)}%
             </div>
+            <div className="text-sm text-gray-600">Average Score</div>
           </div>
-          
-          <div>
-            <h4 className="font-medium text-gray-900 mb-2">Providers</h4>
-            <div className="space-y-1">
-              {metadata.providers.map((provider, index) => (
-                <Badge key={index} variant="primary">
-                  {provider.name || provider.id}
-                </Badge>
-              ))}
-            </div>
-          </div>
+        </div>
+
+        {/* Download Button */}
+        <div className="mt-4 flex justify-end">
+          <Button onClick={handleDownload} variant="outline" size="sm">
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download Results
+          </Button>
         </div>
       </Card>
 
-      {/* Detailed Results */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Detailed Results</h3>
-        
-        {results.map((result) => (
-          <Card key={result.id} className="relative">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <div className="flex items-center space-x-3 mb-2">
-                  <h4 className="font-medium text-gray-900">Test {result.id + 1}</h4>
-                  <Badge variant={result.passed ? 'success' : 'error'}>
-                    {result.passed ? 'Passed' : 'Failed'}
-                  </Badge>
-                  <Badge variant={getScoreBadgeVariant(result.score)}>
-                    {result.score.toFixed(1)}%
-                  </Badge>
+      {/* Tabs for Results and Error Clusters */}
+      {summary.failedTests > 0 && errorClusters && (
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('results')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'results'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Test Results
+            </button>
+            <button
+              onClick={() => setActiveTab('clusters')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'clusters'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Error Analysis ({errorClusters.summary.clustersFound} patterns)
+            </button>
+          </nav>
+        </div>
+      )}
+
+      {/* Tab Content */}
+      {activeTab === 'results' && (
+        <Card title="Test Results">
+          <div className="space-y-4">
+            {results.map((result, index) => (
+              <div
+                key={result.id || index}
+                className="border border-gray-200 rounded-lg p-4"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center space-x-3">
+                    <Badge
+                      variant={result.passed ? 'success' : 'error'}
+                      className="text-xs"
+                    >
+                      {result.passed ? 'PASSED' : 'FAILED'}
+                    </Badge>
+                    <span className="text-sm text-gray-600">
+                      Test #{index + 1}
+                    </span>
+                    <span className="text-sm font-medium">
+                      Score: {result.score.toFixed(1)}
+                    </span>
+                  </div>
+                  <div className="text-right text-sm text-gray-500">
+                    {result.latencyMs}ms
+                  </div>
                 </div>
-              </div>
-              <CopyButton text={result.response} />
-            </div>
 
-            {/* Prompt */}
-            <div className="mb-4">
-              <h5 className="text-sm font-medium text-gray-700 mb-1">Prompt</h5>
-              <div className="bg-gray-50 rounded p-3 text-sm font-mono">
-                {result.prompt}
-              </div>
-            </div>
-
-            {/* Response */}
-            <div className="mb-4">
-              <h5 className="text-sm font-medium text-gray-700 mb-1">Response</h5>
-              <div className="bg-gray-50 rounded p-3 text-sm">
-                {result.response}
-              </div>
-            </div>
-
-            {/* Assertions */}
-            {result.assertions.length > 0 && (
-              <div>
-                <h5 className="text-sm font-medium text-gray-700 mb-2">
-                  Evaluation Criteria ({result.assertions.length})
-                </h5>
-                <div className="space-y-2">
-                  {result.assertions.map((assertion, index) => (
-                    <AssertionCard key={index} assertion={assertion} />
-                  ))}
+                {/* Prompt and Response */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-3">
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Prompt</h4>
+                    <div className="bg-gray-50 p-3 rounded text-sm">
+                      {result.prompt || 'No prompt available'}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Response</h4>
+                    <div className="bg-gray-50 p-3 rounded text-sm">
+                      {result.response || 'No response available'}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </Card>
-        ))}
-      </div>
 
-      {/* Empty State */}
-      {results.length === 0 && (
-        <Card className="text-center py-12">
-          <div className="text-gray-500">
-            <div className="text-lg font-medium mb-2">No Results Found</div>
-            <p>The evaluation completed but no results were generated.</p>
+                {/* Error */}
+                {result.error && (
+                  <div className="mt-3">
+                    <h4 className="text-sm font-medium text-red-700 mb-2">Error Details</h4>
+                    <div className="bg-red-50 border border-red-200 p-3 rounded text-sm text-red-800">
+                      {result.error}
+                    </div>
+                  </div>
+                )}
+
+                {/* Assertions */}
+                {result.assertions && result.assertions.length > 0 && (
+                  <div className="mt-3">
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">Assertions</h4>
+                    <div className="space-y-2">
+                      {result.assertions.map((assertion, assertionIndex) => (
+                        <div
+                          key={assertionIndex}
+                          className="flex items-center space-x-2 text-sm"
+                        >
+                          <Badge
+                            variant={assertion.passed ? 'success' : 'error'}
+                            className="text-xs"
+                          >
+                            {assertion.passed ? '✓' : '✗'}
+                          </Badge>
+                          <span>{assertion.type || 'Unknown assertion'}</span>
+                          {assertion.score !== undefined && (
+                            <span className="text-gray-500">
+                              (Score: {assertion.score})
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </Card>
       )}
+
+      {/* Error Clustering Tab */}
+      {activeTab === 'clusters' && errorClusters && (
+        <Card title="Error Pattern Analysis">
+          <ErrorClusteringView clusteringResults={errorClusters} />
+        </Card>
+      )}
+
+      {/* Metadata */}
+      <Card title="Evaluation Metadata">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div>
+            <span className="font-medium text-gray-700">Evaluation ID:</span>
+            <div className="text-gray-600 font-mono">{evaluationId}</div>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Timestamp:</span>
+            <div className="text-gray-600">
+              {new Date(metadata.timestamp).toLocaleString()}
+            </div>
+          </div>
+          <div>
+            <span className="font-medium text-gray-700">Version:</span>
+            <div className="text-gray-600">{metadata.version}</div>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };
 
 interface AssertionCardProps {
-  assertion: AssertionResult;
+  assertion: {
+    type: string;
+    passed: boolean;
+    score?: number;
+    maxScore?: number;
+    reason?: string;
+    value?: string;
+  };
 }
 
 const AssertionCard: React.FC<AssertionCardProps> = ({ assertion }) => {
   const getScoreColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'text-success-600';
-    if (percentage >= 60) return 'text-warning-600';
-    return 'text-error-600';
+    if (percentage >= 80) return 'text-green-600';
+    if (percentage >= 60) return 'text-yellow-600';
+    return 'text-red-600';
   };
 
   const getProgressBarColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'bg-success-500';
-    if (percentage >= 60) return 'bg-warning-500';
-    return 'bg-error-500';
+    if (percentage >= 80) return 'bg-green-500';
+    if (percentage >= 60) return 'bg-yellow-500';
+    return 'bg-red-500';
   };
 
-  const percentage = (assertion.score / assertion.maxScore) * 100;
+  const score = assertion.score ?? 0;
+  const maxScore = assertion.maxScore ?? 10;
+  const percentage = (score / maxScore) * 100;
 
   return (
     <div className="border border-gray-200 rounded-lg p-3">
       <div className="flex justify-between items-start mb-2">
         <div className="flex items-center space-x-2">
           <span className="text-sm font-medium text-gray-900">
-            {assertion.metric || assertion.type}
+            {assertion.type}
           </span>
           <Badge variant={assertion.passed ? 'success' : 'error'} className="text-xs">
             {assertion.passed ? 'Pass' : 'Fail'}
           </Badge>
         </div>
-        <span className={`text-sm font-medium ${getScoreColor(assertion.score, assertion.maxScore)}`}>
-          {assertion.score.toFixed(1)}/{assertion.maxScore}
-        </span>
+        {assertion.score !== undefined && assertion.maxScore !== undefined && (
+          <span className={`text-sm font-medium ${getScoreColor(score, maxScore)}`}>
+            {score.toFixed(1)}/{maxScore}
+          </span>
+        )}
       </div>
-      
+
       {/* Progress Bar */}
-      <div className="mb-2">
-        <div className="w-full bg-gray-200 rounded-full h-2">
-          <div
-            className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(assertion.score, assertion.maxScore)}`}
-            style={{ width: `${Math.min(percentage, 100)}%` }}
-          />
+      {assertion.score !== undefined && assertion.maxScore !== undefined && (
+        <div className="mb-2">
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-300 ${getProgressBarColor(score, maxScore)}`}
+              style={{ width: `${Math.min(percentage, 100)}%` }}
+            />
+          </div>
         </div>
-      </div>
-      
+      )}
+
       {/* Reason */}
       {assertion.reason && (
         <p className="text-xs text-gray-600 mt-1">
