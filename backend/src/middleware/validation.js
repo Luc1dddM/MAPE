@@ -111,13 +111,11 @@ const validatePromptfooEvaluation = [
   body("providers")
     .optional()
     .isArray()
-    .isEmpty()
     .withMessage("Providers must be an array"),
 
   body("providers.*")
     .optional()
     .isString()
-    .isEmpty()
     .withMessage("Provider must be a string"),
 
   body("evaluationCriteria")

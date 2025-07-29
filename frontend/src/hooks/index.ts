@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 
 interface UseCopyToClipboardReturn {
   copy: (text: string) => Promise<boolean>;
@@ -92,7 +92,7 @@ export function useDebounce<T>(value: T, delay: number): UseDebounceReturn<T> {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
   const [isDebouncing, setIsDebouncing] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     setIsDebouncing(true);
     const handler = setTimeout(() => {
       setDebouncedValue(value);

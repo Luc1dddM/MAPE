@@ -196,10 +196,15 @@ Format your response as JSON:
      */
     async clusterFailedTests(evaluationResults) {
         try {
+
+            console.log('Starting error clustering analysis....................', evaluationResults);
             // Filter failed test cases
             const failedTests = evaluationResults.results.filter(result => 
-                !result.passed && (result.error || result.gradingResult?.reason)
+                !result.success
             );
+
+            console.log('Errors....................', failedTests);
+
 
             if (failedTests.length === 0) {
                 return {
@@ -217,7 +222,7 @@ Format your response as JSON:
 
             // Prepare error texts for embedding
             const errorTexts = failedTests.map(test => {
-                const errorText = test.error || test.gradingResult?.reason || 'Unknown error';
+                const errorText = test.reason || 'Unknown error';
                 const promptText = test.prompt || 'No prompt';
                 const responseText = test.response || 'No response';
                 

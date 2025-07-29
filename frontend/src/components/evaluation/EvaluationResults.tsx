@@ -10,6 +10,7 @@ import {
   ErrorClusteringResults
 } from '@/types/api';
 import toast from 'react-hot-toast';
+import { cn } from '@/utils';
 
 interface EvaluationResultsProps {
   summary: EvaluationSummary;
@@ -36,6 +37,8 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
       toast.error(`Failed to download results: ${error.message}`);
     }
   };
+
+  console.log('Evaluation Results:', results)
 
   return (
     <div className="space-y-6">
@@ -101,6 +104,8 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
         </div>
       )}
 
+
+
       {/* Tab Content */}
       {activeTab === 'results' && (
         <Card title="Test Results">
@@ -146,43 +151,14 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
                   </div>
                 </div>
 
-                {/* Error */}
-                {result.error && (
-                  <div className="mt-3">
-                    <h4 className="text-sm font-medium text-red-700 mb-2">Error Details</h4>
-                    <div className="bg-red-50 border border-red-200 p-3 rounded text-sm text-red-800">
-                      {result.error}
-                    </div>
-                  </div>
-                )}
 
-                {/* Assertions */}
-                {result.assertions && result.assertions.length > 0 && (
+                {/* Reason */}
                   <div className="mt-3">
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Assertions</h4>
-                    <div className="space-y-2">
-                      {result.assertions.map((assertion, assertionIndex) => (
-                        <div
-                          key={assertionIndex}
-                          className="flex items-center space-x-2 text-sm"
-                        >
-                          <Badge
-                            variant={assertion.passed ? 'success' : 'error'}
-                            className="text-xs"
-                          >
-                            {assertion.passed ? '✓' : '✗'}
-                          </Badge>
-                          <span>{assertion.type || 'Unknown assertion'}</span>
-                          {assertion.score !== undefined && (
-                            <span className="text-gray-500">
-                              (Score: {assertion.score})
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                    <h4 className={cn("text-sm font-medium mb-2", result.passed ? "text-green-700" : "text-red-700")}>Details</h4>
+                    <div className={cn(" border p-3 rounded text-sm", result.passed ? "text-green-800 bg-green-50" : "text-red-800 bg-red-50")}>
+                      {result.reason}
                     </div>
                   </div>
-                )}
               </div>
             ))}
           </div>

@@ -1,12 +1,5 @@
 import React, { useState } from 'react';
-import { us      providers: providersData?.data.providers.map((provider: any) => ({
-        id: provider.id,
-        name: provider.name || provider.id,
-      })) || [],
-      evaluationCriteria: criteriaData?.data.criteria.map((criteria: any) => ({
-        name: criteria.name,
-        description: criteria.description,
-      })) || [],seFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
 import { Card, Badge } from '@/components/ui';
@@ -40,8 +33,14 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
   const [activeTab, setActiveTab] = useState<'prompts' | 'tests' | 'config'>('prompts');
 
   // Fetch available criteria and providers
-  const { data: criteriaData } = useQuery('evaluation-criteria', evaluationService.getCriteria);
-  const { data: providersData } = useQuery('evaluation-providers', evaluationService.getProviders);
+  const { data: criteriaData } = useQuery({
+    queryKey: ['evaluation-criteria'],
+    queryFn: evaluationService.getCriteria
+  });
+  const { data: providersData } = useQuery({
+    queryKey: ['evaluation-providers'],
+    queryFn: evaluationService.getProviders
+  });
 
   const {
     register,
@@ -56,7 +55,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
       prompts: initialPrompts.length > 0 
         ? initialPrompts.map(content => ({ content }))
         : [{ content: '' }],
-      testCases: [{ description: '', input: {}, expectedOutput: '' }],
+      testCases: [{ description: '', input: '', expectedOutput: '' }],
       providers: providersData?.data.providers.map(provider => ({
         selected: provider.id === 'google:gemini-1.5-flash',
         provider
@@ -215,7 +214,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => appendTest({ description: '', input: {}, expectedOutput: '' })}
+                onClick={() => appendTest({ description: '', input: '', expectedOutput: '' })}
               >
                 Add Test Case
               </Button>

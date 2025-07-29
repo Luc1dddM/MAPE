@@ -80,44 +80,25 @@ class PromptfooEvaluationService {
         // Create defaultTest configuration for LLM-based evaluation
         let defaultTest = {};
 
-        // // Add LLM evaluation criteria to defaultTest
-        // const enabledCriteria = request.evaluationCriteria || [];
-        // if (enabledCriteria.length > 0) {
-        //     const defaultAssertions = enabledCriteria.map(criteria => {
-        //         // Handle both string criteria names and object criteria
-        //         const criteriaName = typeof criteria === 'string' ? criteria : criteria.name;
-        //         return {
-        //             type: 'llm-rubric',
-        //             value: this.getCriteriaPrompt(criteriaName)
-        //         };
-        //     });
+        console.log('Request evaluation criteria:', request.evaluationCriteria);
 
-        //     defaultTest.assert = defaultAssertions;
-        //     defaultTest.options = {
-        //         provider: providers[0].id, // Use the first provider for default test
-        //     };
-        // }
+        // Add LLM evaluation criteria to defaultTest
+        const enabledCriteria = request.evaluationCriteria || [];
+        if (enabledCriteria.length > 0) {
+            console.log('Enabled criteria:', enabledCriteria);
+            const defaultAssertions = enabledCriteria.map(criteria => {
+                // Handle both string criteria names and object criteria
+                return {
+                    type: 'llm-rubric',
+                    value: this.getCriteriaPrompt(criteria)
+                };
+            });
 
-        const enabledCriteria = ['accuracy'];
-
-        const defaultAssertions = enabledCriteria.map(criteria => {
-            // Handle both string criteria names and object criteria
-            const criteriaName = typeof criteria === 'string' ? criteria : criteria.name;
-            return {
-                type: 'llm-rubric',
-                value: this.getCriteriaPrompt('accuracy') // Default to accuracy prompt
+            defaultTest.assert = defaultAssertions;
+            defaultTest.options = {
+                provider: providers[0].id, // Use the first provider for default test
             };
-        });
-
-        defaultTest.assert = defaultAssertions;
-        defaultTest.options = {
-            provider: providers[0].id, // Use the first provider for default test
-        };
-
-        // const enabledCriteria = request.evaluationCriteria || [];
-        // if (enabledCriteria.length > 0) {
-        // }
-
+        }
 
         // Handle tests - support both inline test cases and CSV file references
         let tests = [];
@@ -235,36 +216,48 @@ class PromptfooEvaluationService {
     async extractEvaluationResults(evaluationData) {
         const { results, config, prompts } = evaluationData;
 
-        console.log("Prompts", prompts)
 
         // Extract summary information
         const totalTests = results.stats.successes + results.stats.failures + results.stats.errors;
         const passedTests = results.stats.successes;
         const failedTests = results.stats.failures;
 
-        // Calculate average score from all test results
-        const totalScore = results.results.reduce((sum, result) => sum + (result.score || 0), 0);
-        const averageScore = totalTests > 0 ? totalScore / totalTests : 0;
-
         // Extract results array with relevant information
-        const extractedResults = results.results.map((result, index) => ({
-            id: result.id,
-            testIdx: result.testIdx,
-            success: result.success,
-            score: result.score,
-            error: result.error || null,
-            prompt: results.prompts[index].raw || null,
-            response: result.response?.output || null,
-            vars: result.vars,
-            latencyMs: result.latencyMs,
-            cost: result.cost,
-            gradingResult: {
+        const extractedResults = results.results.map((result, index) => {
+            // Extract component results for grading details
+            let gradingResult = {
                 pass: result.gradingResult?.pass || false,
-                score: result.gradingResult?.score || 0,
-                reason: result.gradingResult?.reason || null
-            },
-            tokenUsage: result.response?.tokenUsage || null
-        }));
+                score: 0,
+                reason: null
+            };
+
+            // Get score and reason from componentResults if available
+            if (result.gradingResult?.componentResults && result.gradingResult.componentResults.length > 0) {
+                const component = result.gradingResult.componentResults[0]; // Take first component
+                gradingResult.score = component.score || 0;
+                gradingResult.reason = component.reason || null;
+                gradingResult.pass = component.pass || false;
+            }
+
+            return {
+                id: result.id,
+                testIdx: result.testIdx,
+                success: result.success,
+                score: gradingResult.score, // Use component score directly
+                reason: gradingResult.reason,
+                prompt: results.prompts[index]?.raw || null,
+                response: result.response?.output || null,
+                vars: result.vars,
+                latencyMs: result.latencyMs,
+                cost: result.cost,
+                tokenUsage: result.response?.tokenUsage || null,
+                passed: gradingResult.pass
+            };
+        });
+
+        // Calculate average score from component results
+        const totalScore = extractedResults.reduce((sum, result) => sum + (result.score || 0), 0);
+        const averageScore = totalTests > 0 ? totalScore / totalTests : 0;
 
         // Extract metadata
         const metadata = {

@@ -264,12 +264,13 @@ export interface EvaluationResult {
   prompt: string;
   response: string;
   score: number;
-  success: boolean;
+  passed: boolean;
   vars: Array<{
     query: string;
     expectedAnswer?: string;
   }>;
-  error?: string;
+  reason?: string;
+  latencyMs: number;
 }
 
 export interface EvaluationSummary {

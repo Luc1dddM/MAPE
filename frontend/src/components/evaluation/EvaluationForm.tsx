@@ -167,7 +167,8 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
         prompts: data.prompts.map((p: any) => p.content),
         testCases: data.testCases.map((tc: any) => ({
           input: tc.input,
-          expectedOutput: tc.expected,
+          expected: tc.expected,
+          description: tc.description,
         })),
         providers: selectedProviders,
         evaluationCriteria: selectedCriteria,

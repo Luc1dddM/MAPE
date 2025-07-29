@@ -241,9 +241,9 @@ const ErrorClusteringView: React.FC<ErrorClusteringViewProps> = ({ clusteringRes
                             <div>
                               <div className="text-xs font-semibold text-gray-700 mb-1">Error:</div>
                               <div className="text-xs text-red-600 bg-red-50 p-2 rounded font-mono">
-                                {typeof (test.error || test.errorText) === 'string' 
-                                  ? (test.error || test.errorText) 
-                                  : JSON.stringify(test.error || test.errorText)}
+                                {typeof (test.errorText || '') === 'string' 
+                                  ? (test.errorText || '') 
+                                  : JSON.stringify(test.errorText || '')}
                               </div>
                             </div>
                             
