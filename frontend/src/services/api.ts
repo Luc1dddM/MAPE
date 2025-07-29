@@ -45,11 +45,12 @@ apiClient.interceptors.request.use(
 // Response interceptor for error handling
 apiClient.interceptors.response.use(
   (response) => {
+    console.log("Response received:", response);
     return response;
   },
   (error) => {
     console.error('Response error:', error);
-    
+
     if (error.response) {
       // Server responded with error status
       const message = error.response.data?.message || error.response.data?.error || 'An error occurred';
@@ -105,7 +106,14 @@ export const promptService = {
 export const evaluationService = {
   // Run a new evaluation with promptfoo
   async runEvaluation(data: PromptfooEvaluationRequest): Promise<EvaluationResponse> {
-    const response = await apiClient.post<EvaluationResponse>('/api/evaluations/run', data);
+    // Ensure evaluationCriteria is array of string
+    const payload = {
+      ...data,
+      evaluationCriteria: Array.isArray(data.evaluationCriteria)
+        ? data.evaluationCriteria.map((c: any) => typeof c === 'string' ? c : c.name)
+        : [],
+    };
+    const response = await apiClient.post<EvaluationResponse>('/api/evaluations/run', payload);
     return response.data;
   },
 
