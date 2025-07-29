@@ -4,11 +4,15 @@ import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
 import { Card, Badge } from '@/components/ui';
 import { evaluationService } from '@/services/api';
-import { 
-  PromptfooEvaluationRequest, 
-  EvaluationCriteria, 
-  Provider, 
-  TestCase 
+import {
+  PromptfooEvaluationRequest,
+  EvaluationCriteria,
+  Provider,
+  TestCase,
+  EvaluationSummary,
+  EvaluationResult,
+  EvaluationMetadata,
+  ErrorClusteringResults
 } from '@/types/api';
 
 // Form data interface
@@ -40,7 +44,15 @@ interface EvaluationFormData {
 }
 
 interface EvaluationFormProps {
-  onEvaluationStart: (evaluationId: string) => void;
+  onEvaluationStart: (evaluationData: {
+    summary: EvaluationSummary;
+    results: EvaluationResult[];
+    metadata: EvaluationMetadata;
+    evaluationId: string;
+    configPath: string;
+    timestamp: string;
+    errorClusters?: ErrorClusteringResults;
+  }) => void;
 }
 
 export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStart }) => {
@@ -55,7 +67,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
 
   // Fetch available criteria
   const { data: criteriaData } = useQuery({
-    queryKey: ['criteria'], 
+    queryKey: ['criteria'],
     queryFn: () => evaluationService.getCriteria(),
   });
 
@@ -72,14 +84,8 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
       description: '',
       prompts: [{ content: '', name: '' }],
       testCases: [{ input: '', expected: '', description: '' }],
-      providers: providersData?.data.providers.map((provider: any) => ({
-        id: provider.id,
-        name: provider.name || provider.id,
-      })) || [],
-      evaluationCriteria: criteriaData?.data.criteria.map((criteria: any) => ({
-        name: criteria.name,
-        description: criteria.description,
-      })) || [],
+      providers: providersData?.data.providers.map((provider: any) => provider.name) || [],
+      evaluationCriteria: criteriaData?.data.criteria.map((criteria: any) => criteria.name) || [],
       additionalConfig: {
         timeout: 30000,
         maxConcurrency: 5,
@@ -103,7 +109,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
     if (providersData?.data.providers) {
       setValue('providers', providersData.data.providers.map((provider: any) => ({
         id: provider.id,
-        name: provider.name || provider.id,
+        name: provider.name ,
       })));
     }
   }, [providersData, setValue]);
@@ -118,26 +124,34 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
   }, [criteriaData, setValue]);
 
   const onSubmit = async (data: EvaluationFormData) => {
+    console.log('Submitting evaluation data:', data.testCases);
     setIsSubmitting(true);
     try {
       const request: PromptfooEvaluationRequest = {
-        name: data.name,
         description: data.description,
         prompts: data.prompts.map(p => p.content),
         testCases: data.testCases.map(tc => ({
+          description: tc.description || '',
           input: tc.input,
-          expected: tc.expected,
-          description: tc.description,
+          expectedOutput: tc.expected,
         })),
-        providers: data.providers.map(p => p.id),
-        evaluationCriteria: data.evaluationCriteria.map(ec => ec.name),
-        additionalConfig: data.additionalConfig,
+        providers: providersData?.data.providers.map((provider: any) => provider.name) || [],
+        evaluationCriteria: criteriaData?.data.criteria.map((criteria: any) => criteria.name) || [],
       };
 
       const response = await evaluationService.runEvaluation(request);
-      
-      if (response.success && response.data.evaluationId) {
-        onEvaluationStart(response.data.evaluationId);
+
+      if (response.success && response.data) {
+        // Pass the complete evaluation data
+        onEvaluationStart({
+          summary: response.data.summary,
+          results: response.data.results,
+          metadata: response.data.metadata,
+          evaluationId: response.data.evaluationId,
+          configPath: response.data.configPath,
+          timestamp: response.data.timestamp,
+          errorClusters: response.data.errorClusters,
+        });
       }
     } catch (error) {
       console.error('Failed to start evaluation:', error);
@@ -170,7 +184,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
               <p className="text-red-600 text-sm mt-1">{errors.name.message}</p>
             )}
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Description
@@ -192,11 +206,10 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === tab.id
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
                   ? 'border-blue-500 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
+                }`}
             >
               {tab.label}
               {tab.count > 0 && (
@@ -229,7 +242,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                     </button>
                   )}
                 </div>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
                   <input
                     {...register(`prompts.${index}.name`, { required: 'Name is required' })}
@@ -237,14 +250,14 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                     className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                
+
                 <textarea
                   {...register(`prompts.${index}.content`, { required: 'Content is required' })}
                   placeholder="Enter your prompt here..."
                   rows={4}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                
+
                 {errors.prompts?.[index] && (
                   <p className="text-red-600 text-sm mt-1">
                     {errors.prompts[index]?.content?.message || errors.prompts[index]?.name?.message}
@@ -252,7 +265,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                 )}
               </div>
             ))}
-            
+
             <button
               type="button"
               onClick={() => appendPrompt({ content: '', name: '' })}
@@ -283,21 +296,21 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                     </button>
                   )}
                 </div>
-                
+
                 <div className="space-y-3">
                   <input
                     {...register(`testCases.${index}.description`)}
                     placeholder="Test description (optional)"
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  
+
                   <textarea
                     {...register(`testCases.${index}.input`, { required: 'Input is required' })}
                     placeholder="Test input..."
                     rows={3}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  
+
                   <textarea
                     {...register(`testCases.${index}.expected`)}
                     placeholder="Expected output (optional)..."
@@ -305,7 +318,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                
+
                 {errors.testCases?.[index]?.input && (
                   <p className="text-red-600 text-sm mt-1">
                     {errors.testCases[index]?.input?.message}
@@ -313,7 +326,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                 )}
               </div>
             ))}
-            
+
             <button
               type="button"
               onClick={() => appendTest({ input: '', expected: '', description: '' })}
@@ -385,7 +398,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Max Concurrency
@@ -397,7 +410,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({ onEvaluationStar
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Output Path

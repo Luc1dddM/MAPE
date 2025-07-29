@@ -24,7 +24,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 // Create axios instance with default config
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000, // 60 seconds for AI operations
+  timeout: 600000, // 60 seconds for AI operations
   headers: {
     'Content-Type': 'application/json',
   },
