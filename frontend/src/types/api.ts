@@ -144,7 +144,7 @@ export interface ApiError {
   }>;
 }
 
-export type TechniqueType = 
+export type TechniqueType =
   | 'few-shot'
   | 'chain-of-thought'
   | 'zero-shot'
@@ -204,7 +204,7 @@ export interface PromptfooEvaluationRequest {
   prompts: string[];
   testCases?: TestCase[];
   testDataFile?: string;
-  providers?: Provider[];
+  providers?: string[] | Provider[];
   evaluationCriteria?: EvaluationCriteria[];
   description?: string;
 }
