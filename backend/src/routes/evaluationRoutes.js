@@ -8,13 +8,13 @@ const router = express.Router();
 const evaluationController = new EvaluationController();
 
 // Create and run a new evaluation
-router.post("/run", validatePromptfooEvaluation, (req, res) => {
-  evaluationController.createEvaluation(req, res);
-});
-
-// Upload test data
-router.post("/upload", upload.single("file"), (req, res) =>
-  evaluationController.uploadTestData(req, res)
+router.post(
+  "/run",
+  validatePromptfooEvaluation,
+  upload.single("testDataFile"),
+  (req, res) => {
+    evaluationController.createEvaluation(req, res);
+  },
 );
 
 // Get evaluation results by ID

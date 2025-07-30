@@ -34,14 +34,14 @@ const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     console.log(
-      `Making ${config.method?.toUpperCase()} request to ${config.url}`
+      `Making ${config.method?.toUpperCase()} request to ${config.url}`,
     );
     return config;
   },
   (error) => {
     console.error("Request error:", error);
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor for error handling
@@ -67,17 +67,17 @@ apiClient.interceptors.response.use(
       // Something else happened
       throw new Error(error.message || "An unexpected error occurred");
     }
-  }
+  },
 );
 
 export const promptService = {
   // Generate prompts using different techniques
   async generatePrompts(
-    data: PromptGenerationRequest
+    data: PromptGenerationRequest,
   ): Promise<PromptGenerationResponse> {
     const response = await apiClient.post<PromptGenerationResponse>(
       "/api/prompts/generate",
-      data
+      data,
     );
     return response.data;
   },
@@ -85,18 +85,18 @@ export const promptService = {
   // Get available prompt engineering techniques
   async getTechniques(): Promise<TechniquesResponse> {
     const response = await apiClient.get<TechniquesResponse>(
-      "/api/prompts/techniques"
+      "/api/prompts/techniques",
     );
     return response.data;
   },
 
   // Evaluate prompt effectiveness
   async evaluatePrompt(
-    data: PromptEvaluationRequest
+    data: PromptEvaluationRequest,
   ): Promise<PromptEvaluationResponse> {
     const response = await apiClient.post<PromptEvaluationResponse>(
       "/api/prompts/evaluate",
-      data
+      data,
     );
     return response.data;
   },
@@ -105,29 +105,29 @@ export const promptService = {
   async testPrompt(data: PromptTestRequest): Promise<PromptTestResponse> {
     const response = await apiClient.post<PromptTestResponse>(
       "/api/prompts/test",
-      data
+      data,
     );
     return response.data;
   },
 
   // Generate variations of a prompt
   async generateVariations(
-    data: PromptVariationRequest
+    data: PromptVariationRequest,
   ): Promise<PromptVariationResponse> {
     const response = await apiClient.post<PromptVariationResponse>(
       "/api/prompts/variations",
-      data
+      data,
     );
     return response.data;
   },
 
   // Optimize an existing prompt
   async optimizePrompt(
-    data: PromptOptimizationRequest
+    data: PromptOptimizationRequest,
   ): Promise<PromptOptimizationResponse> {
     const response = await apiClient.post<PromptOptimizationResponse>(
       "/api/prompts/optimize",
-      data
+      data,
     );
     return response.data;
   },
@@ -136,20 +136,34 @@ export const promptService = {
 export const evaluationService = {
   // Run a new evaluation with promptfoo
   async runEvaluation(
-    data: PromptfooEvaluationRequest
+    data: PromptfooEvaluationRequest,
   ): Promise<EvaluationResponse> {
     // Ensure evaluationCriteria is array of string
     const payload = {
       ...data,
       evaluationCriteria: Array.isArray(data.evaluationCriteria)
         ? data.evaluationCriteria.map((c: any) =>
-            typeof c === "string" ? c : c.name
+            typeof c === "string" ? c : c.name,
           )
         : [],
     };
     const response = await apiClient.post<EvaluationResponse>(
       "/api/evaluations/run",
-      payload
+      payload,
+    );
+    return response.data;
+  },
+
+  // Run a new evaluation with CSV file upload
+  async runEvaluationWithFile(formData: FormData): Promise<EvaluationResponse> {
+    const response = await apiClient.post<EvaluationResponse>(
+      "/api/evaluations/run-with-file",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      },
     );
     return response.data;
   },
@@ -157,32 +171,31 @@ export const evaluationService = {
   // Get evaluation results by ID
   async getEvaluation(evaluationId: string): Promise<EvaluationResponse> {
     const response = await apiClient.get<EvaluationResponse>(
-      `/api/evaluations/${evaluationId}`
+      `/api/evaluations/${evaluationId}`,
     );
     return response.data;
   },
 
   // Get evaluation status
   async getEvaluationStatus(
-    evaluationId: string
+    evaluationId: string,
   ): Promise<EvaluationStatusResponse> {
     const response = await apiClient.get<EvaluationStatusResponse>(
-      `/api/evaluations/${evaluationId}/status`
+      `/api/evaluations/${evaluationId}/status`,
     );
     return response.data;
   },
 
   // List all evaluations
   async listEvaluations(): Promise<EvaluationListResponse> {
-    const response = await apiClient.get<EvaluationListResponse>(
-      "/api/evaluations"
-    );
+    const response =
+      await apiClient.get<EvaluationListResponse>("/api/evaluations");
     return response.data;
   },
 
   // Delete an evaluation
   async deleteEvaluation(
-    evaluationId: string
+    evaluationId: string,
   ): Promise<{ success: boolean; message: string }> {
     const response = await apiClient.delete(`/api/evaluations/${evaluationId}`);
     return response.data;
@@ -191,7 +204,7 @@ export const evaluationService = {
   // Get available evaluation criteria
   async getCriteria(): Promise<CriteriaResponse> {
     const response = await apiClient.get<CriteriaResponse>(
-      "/api/evaluations/meta/criteria"
+      "/api/evaluations/meta/criteria",
     );
     return response.data;
   },
@@ -199,7 +212,7 @@ export const evaluationService = {
   // Get available providers
   async getProviders(): Promise<ProvidersResponse> {
     const response = await apiClient.get<ProvidersResponse>(
-      "/api/evaluations/meta/providers"
+      "/api/evaluations/meta/providers",
     );
     return response.data;
   },
@@ -207,14 +220,14 @@ export const evaluationService = {
   // Download evaluation results file
   async downloadEvaluation(
     evaluationId: string,
-    format: "json" | "csv" = "json"
+    format: "json" | "csv" = "json",
   ): Promise<Blob> {
     const response = await apiClient.get(
       `/api/evaluations/${evaluationId}/download`,
       {
         params: { format },
         responseType: "blob",
-      }
+      },
     );
     return response.data;
   },

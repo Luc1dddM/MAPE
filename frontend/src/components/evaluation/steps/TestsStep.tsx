@@ -4,7 +4,6 @@ import { UseFormReturn } from "react-hook-form";
 import { useState } from "react";
 import Papa from "papaparse";
 import { uploadEvaluationCsv } from "@/services/api";
-
 interface TestsStepProps {
   form: UseFormReturn<any>;
   testFields: any[];
@@ -27,36 +26,6 @@ const TestsStep: React.FC<TestsStepProps> = ({
   const [uploadedCsvPath, setUploadedCsvPath] = useState<string | null>(null);
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvUploadError, setCsvUploadError] = useState<string | null>(null);
-  // Xử lý upload file CSV
-  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCsvUploading(true);
-    setCsvUploadError(null);
-    try {
-      // Upload file lên backend
-      const path = await uploadEvaluationCsv(file);
-      setUploadedCsvPath(path);
-      // Parse preview cho user xem (không gửi testCases khi submit)
-      Papa.parse<any>(file as File, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results: Papa.ParseResult<any>) => {
-          const rows = (results.data as any[]).map((row) => ({ ...row }));
-          setCsvPreview(rows);
-        },
-        error: (error: Error) => {
-          setCsvPreview([]);
-        },
-      });
-    } catch (err: any) {
-      setCsvUploadError(err.message || "Upload failed");
-      setUploadedCsvPath(null);
-      setCsvPreview([]);
-    } finally {
-      setCsvUploading(false);
-    }
-  };
 
   // Download CSV template
   const handleDownloadTemplate = () => {
@@ -193,10 +162,10 @@ const TestsStep: React.FC<TestsStepProps> = ({
         <div className="space-y-4">
           <div className="flex gap-4 items-center">
             <input
+              {...register("csvFile")}
               type="file"
               accept=".csv"
-              className=""
-              onChange={handleCsvUpload}
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
             <button
               type="button"
