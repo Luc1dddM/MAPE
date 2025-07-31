@@ -1,51 +1,60 @@
-const GoogleAIService = require('./GoogleAIService');
-const logger = require('../utils/logger');
+import GoogleAIService from "./GoogleAIService.js";
+import logger from "../utils/logger.js";
+import { PromptResult, PromptTechnique, TechniqueDescription } from "../types/index.js";
 
 class PromptEngineeringService {
+  private aiService: GoogleAIService;
+  private techniques: Record<string, Function>;
+
   constructor() {
     this.aiService = new GoogleAIService();
     this.techniques = {
-      'few-shot': this.generateFewShotPrompt.bind(this),
-      'chain-of-thought': this.generateChainOfThoughtPrompt.bind(this),
-      'zero-shot': this.generateZeroShotPrompt.bind(this),
-      'role-based': this.generateRoleBasedPrompt.bind(this),
-      'template-based': this.generateTemplateBasedPrompt.bind(this),
-      'iterative-refinement': this.generateIterativeRefinementPrompt.bind(this)
+      "few-shot": this.generateFewShotPrompt.bind(this),
+      "chain-of-thought": this.generateChainOfThoughtPrompt.bind(this),
+      "zero-shot": this.generateZeroShotPrompt.bind(this),
+      "role-based": this.generateRoleBasedPrompt.bind(this),
+      "template-based": this.generateTemplateBasedPrompt.bind(this),
+      "iterative-refinement": this.generateIterativeRefinementPrompt.bind(this),
     };
   }
 
-  async generatePrompts(query, context, expectedOutput, techniques = null, parameters = {}) {
+  async generatePrompts(
+    query: string,
+    context?: string,
+    expectedOutput?: string,
+    techniques: string[] | null = null,
+    parameters: any = {},
+  ): Promise<Record<string, PromptResult>> {
     try {
       const techniquesToUse = techniques || Object.keys(this.techniques);
-      const results = {};
+      const results: Record<string, PromptResult> = {};
 
       for (const technique of techniquesToUse) {
         if (this.techniques[technique]) {
           logger.info(`Generating prompt using technique: ${technique}`);
-          
+
           try {
             const promptData = await this.techniques[technique](
-              query, 
-              context, 
-              expectedOutput, 
-              parameters
+              query,
+              context,
+              expectedOutput,
+              parameters,
             );
-            
+
             results[technique] = {
               success: true,
               ...promptData,
               metadata: {
                 technique,
                 generatedAt: new Date().toISOString(),
-                parameters: parameters[technique] || {}
-              }
+                parameters: parameters[technique] || {},
+              },
             };
           } catch (error) {
             logger.error(`Error generating ${technique} prompt:`, error);
             results[technique] = {
               success: false,
-              error: error.message,
-              technique
+              error: error instanceof Error ? error.message : 'Unknown error',
             };
           }
         }
@@ -53,22 +62,22 @@ class PromptEngineeringService {
 
       return results;
     } catch (error) {
-      logger.error('Error in generatePrompts:', error);
+      logger.error("Error in generatePrompts:", error);
       throw error;
     }
   }
 
-  async generateFewShotPrompt(query, context, expectedOutput, parameters = {}) {
+  async generateFewShotPrompt(query: string, context?: string, expectedOutput?: string, parameters: any = {}): Promise<string> {
     const numExamples = parameters.numExamples || 3;
-    
+
     const metaPrompt = `
 Create a few-shot learning prompt for the following task:
 
 Task: ${query}
-Context: ${context || 'No additional context provided'}
+Context: ${context || "No additional context provided"}
 Expected Output Format: ${expectedOutput}
 
-Generate a prompt that includes ${numExamples} high-quality examples that demonstrate the pattern the AI should follow. 
+Generate a prompt that includes ${numExamples} high-quality examples that demonstrate the pattern the AI should follow.
 
 The prompt should:
 1. Clearly explain the task
@@ -81,7 +90,7 @@ Examples:
 Input: [example 1 input]
 Output: [example 1 output]
 
-Input: [example 2 input]  
+Input: [example 2 input]
 Output: [example 2 output]
 
 [Continue for ${numExamples} examples]
@@ -94,23 +103,23 @@ Make sure the examples are realistic and demonstrate the expected output format 
 `;
 
     const generatedPrompt = await this.aiService.generateContent(metaPrompt);
-    
-    return {
-      prompt: generatedPrompt,
-      technique: 'few-shot',
-      description: `Few-shot learning prompt with ${numExamples} examples`,
-      usage: 'Replace [USER_INPUT_PLACEHOLDER] with actual user input'
-    };
+
+    return generatedPrompt;
   }
 
-  async generateChainOfThoughtPrompt(query, context, expectedOutput, parameters = {}) {
+  async generateChainOfThoughtPrompt(
+    query: string,
+    context?: string,
+    expectedOutput?: string,
+    parameters: any = {},
+  ): Promise<string> {
     const reasoningSteps = parameters.reasoningSteps || 3;
-    
+
     const metaPrompt = `
 Create a chain-of-thought prompt for the following task:
 
 Task: ${query}
-Context: ${context || 'No additional context provided'}
+Context: ${context || "No additional context provided"}
 Expected Output Format: ${expectedOutput}
 
 Generate a prompt that encourages step-by-step reasoning with approximately ${reasoningSteps} reasoning steps.
@@ -126,23 +135,23 @@ Structure the prompt to guide the AI through logical reasoning steps that lead t
 `;
 
     const generatedPrompt = await this.aiService.generateContent(metaPrompt);
-    
-    return {
-      prompt: generatedPrompt,
-      technique: 'chain-of-thought',
-      description: `Chain-of-thought prompt encouraging ${reasoningSteps}-step reasoning`,
-      usage: 'AI will show reasoning process before providing final answer'
-    };
+
+    return generatedPrompt;
   }
 
-  async generateZeroShotPrompt(query, context, expectedOutput, parameters = {}) {
-    const tone = parameters.tone || 'professional';
-    
+  async generateZeroShotPrompt(
+    query: string,
+    context?: string,
+    expectedOutput?: string,
+    parameters: any = {},
+  ): Promise<string> {
+    const tone = parameters.tone || "professional";
+
     const metaPrompt = `
 Create a zero-shot prompt for the following task:
 
 Task: ${query}
-Context: ${context || 'No additional context provided'}
+Context: ${context || "No additional context provided"}
 Expected Output Format: ${expectedOutput}
 Tone: ${tone}
 
@@ -158,23 +167,23 @@ The prompt should be self-contained and enable the AI to complete the task witho
 `;
 
     const generatedPrompt = await this.aiService.generateContent(metaPrompt);
-    
-    return {
-      prompt: generatedPrompt,
-      technique: 'zero-shot',
-      description: `Direct zero-shot prompt with ${tone} tone`,
-      usage: 'Direct instruction without examples'
-    };
+
+    return generatedPrompt;
   }
 
-  async generateRoleBasedPrompt(query, context, expectedOutput, parameters = {}) {
-    const role = parameters.role || 'expert';
-    
+  async generateRoleBasedPrompt(
+    query: string,
+    context?: string,
+    expectedOutput?: string,
+    parameters: any = {},
+  ): Promise<string> {
+    const role = parameters.role || "expert";
+
     const metaPrompt = `
 Create a role-based prompt for the following task:
 
 Task: ${query}
-Context: ${context || 'No additional context provided'}
+Context: ${context || "No additional context provided"}
 Expected Output Format: ${expectedOutput}
 Role: ${role}
 
@@ -189,23 +198,23 @@ The role should enhance the AI's ability to complete the task effectively.
 `;
 
     const generatedPrompt = await this.aiService.generateContent(metaPrompt);
-    
-    return {
-      prompt: generatedPrompt,
-      technique: 'role-based',
-      description: `Role-based prompt with ${role} persona`,
-      usage: `AI will respond as a ${role}`
-    };
+
+    return generatedPrompt;
   }
 
-  async generateTemplateBasedPrompt(query, context, expectedOutput, parameters = {}) {
-    const templateStructure = parameters.templateStructure || 'structured';
-    
+  async generateTemplateBasedPrompt(
+    query: string,
+    context?: string,
+    expectedOutput?: string,
+    parameters: any = {},
+  ): Promise<string> {
+    const templateStructure = parameters.templateStructure || "structured";
+
     const metaPrompt = `
 Create a template-based prompt for the following task:
 
 Task: ${query}
-Context: ${context || 'No additional context provided'}
+Context: ${context || "No additional context provided"}
 Expected Output Format: ${expectedOutput}
 Template Structure: ${templateStructure}
 
@@ -221,23 +230,23 @@ The template should be reusable for similar tasks with different inputs.
 `;
 
     const generatedPrompt = await this.aiService.generateContent(metaPrompt);
-    
-    return {
-      prompt: generatedPrompt,
-      technique: 'template-based',
-      description: `Structured template with ${templateStructure} format`,
-      usage: 'Fill in template placeholders with specific information'
-    };
+
+    return generatedPrompt;
   }
 
-  async generateIterativeRefinementPrompt(query, context, expectedOutput, parameters = {}) {
+  async generateIterativeRefinementPrompt(
+    query: string,
+    context?: string,
+    expectedOutput?: string,
+    parameters: any = {},
+  ): Promise<string> {
     const iterations = parameters.iterations || 2;
-    
+
     const metaPrompt = `
 Create an iterative refinement prompt for the following task:
 
 Task: ${query}
-Context: ${context || 'No additional context provided'}
+Context: ${context || "No additional context provided"}
 Expected Output Format: ${expectedOutput}
 Number of iterations: ${iterations}
 
@@ -253,34 +262,35 @@ The prompt should guide the AI through a process of continuous improvement.
 `;
 
     const generatedPrompt = await this.aiService.generateContent(metaPrompt);
-    
-    return {
-      prompt: generatedPrompt,
-      technique: 'iterative-refinement',
-      description: `Iterative refinement with ${iterations} improvement cycles`,
-      usage: 'AI will self-improve response through multiple iterations'
-    };
+
+    return generatedPrompt;
   }
 
-  getAvailableTechniques() {
-    return Object.keys(this.techniques).map(technique => ({
+  getAvailableTechniques(): TechniqueDescription[] {
+    return Object.keys(this.techniques).map((technique) => ({
       name: technique,
-      description: this.getTechniqueDescription(technique)
+      description: this.getTechniqueDescription(technique),
     }));
   }
 
-  getTechniqueDescription(technique) {
+  getTechniqueDescription(technique: string): string {
     const descriptions = {
-      'few-shot': 'Provides examples to guide the model toward the desired output pattern',
-      'chain-of-thought': 'Encourages step-by-step reasoning and logical thinking',
-      'zero-shot': 'Direct instruction without examples, relying on the model\'s training',
-      'role-based': 'Assigns a specific role or persona to enhance task performance',
-      'template-based': 'Uses structured templates for consistent, reproducible outputs',
-      'iterative-refinement': 'Progressively improves responses through self-reflection'
+      "few-shot":
+        "Provides examples to guide the model toward the desired output pattern",
+      "chain-of-thought":
+        "Encourages step-by-step reasoning and logical thinking",
+      "zero-shot":
+        "Direct instruction without examples, relying on the model's training",
+      "role-based":
+        "Assigns a specific role or persona to enhance task performance",
+      "template-based":
+        "Uses structured templates for consistent, reproducible outputs",
+      "iterative-refinement":
+        "Progressively improves responses through self-reflection",
     };
-    
-    return descriptions[technique] || 'No description available';
+
+    return (descriptions as Record<string, string>)[technique] || "No description available";
   }
 }
 
-module.exports = PromptEngineeringService;
+export default PromptEngineeringService;

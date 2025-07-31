@@ -1,12 +1,33 @@
-const { spawn } = require("child_process");
-const path = require("path");
-const fs = require("fs-extra");
-const yaml = require("yaml");
-const { v4: uuidv4 } = require("uuid");
-const logger = require("../utils/logger");
-const ErrorClusteringService = require("./ErrorClusteringService");
+import { spawn } from "child_process";
+import path from "path";
+import { fileURLToPath } from "url";
+import fs from "fs-extra";
+import yaml from "yaml";
+import { v4 as uuidv4 } from "uuid";
+import logger from "../utils/logger.js";
+import ErrorClusteringService from "./ErrorClusteringService.js";
+import {
+  EvaluationRequest,
+  EvaluationResult,
+  TestCase,
+  AssertionConfig,
+  PromptConfig,
+  PromptfooConfig,
+  EvaluationResults,
+  EvaluationSummary,
+  EvaluationMetadata,
+  EvaluationListItem,
+  ComponentResult,
+} from "../types/evaluation.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 class PromptfooEvaluationService {
+  private evaluationsDir: string;
+  private resultsDir: string;
+  private errorClusteringService: ErrorClusteringService;
+
   constructor() {
     this.evaluationsDir = path.join(__dirname, "../../evaluations");
     this.resultsDir = path.join(__dirname, "../../evaluation-results");
@@ -23,7 +44,7 @@ class PromptfooEvaluationService {
     }
   }
 
-  async evaluatePrompts(request) {
+  async evaluatePrompts(request: EvaluationRequest): Promise<any> {
     try {
       const evaluationId = uuidv4();
       logger.info(`Starting evaluation with ID: ${evaluationId}`);
@@ -32,11 +53,11 @@ class PromptfooEvaluationService {
       const config = this.generatePromptfooConfig(request);
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`
+        `eval-${evaluationId}.yaml`,
       );
 
       // Write config file
-      await fs.writeFile(configPath, config);
+      await fs.writeFile(configPath, config as string);
       logger.info(`Config written to: ${configPath}`);
 
       // Run promptfoo evaluation
@@ -56,18 +77,19 @@ class PromptfooEvaluationService {
     }
   }
 
-  generatePromptfooConfig(request) {
+  generatePromptfooConfig(request: EvaluationRequest): string {
     // Format providers to match the example structure
     const providers = request.providers?.map((provider) => ({
       id: provider.id || "google:gemini-2.5-flash",
       config: {
-        apiKey: provider.config?.apiKey || process.env.GEMINI_API_KEY || "",
+        apiKey:
+          provider.config?.apiKey || process.env?.["GEMINI_API_KEY"] || "",
       },
     })) || [
       {
         id: "google:gemini-2.5-flash",
         config: {
-          apiKey: process.env.GEMINI_API_KEY || "",
+          apiKey: process.env["GEMINI_API_KEY"] || "",
           temperature: 0.7,
           maxOutputTokens: 1000,
         },
@@ -79,11 +101,11 @@ class PromptfooEvaluationService {
       if (typeof p === "string") {
         return p;
       }
-      return p.content || p;
+      return (p as PromptConfig).content || p;
     });
 
     // Create defaultTest configuration for LLM-based evaluation
-    let defaultTest = {};
+    let defaultTest: any = {};
 
     console.log("Request evaluation criteria:", request.evaluationCriteria);
 
@@ -101,22 +123,22 @@ class PromptfooEvaluationService {
 
       defaultTest.assert = defaultAssertions;
       defaultTest.options = {
-        provider: providers[0].id, // Use the first provider for default test
+        provider: providers[0]?.id, // Use the first provider for default test
       };
     }
 
     // Handle tests - support both inline test cases and CSV file references
-    let tests = [];
-    console.log("request.testDataFile", request.testDataFile);
+    let tests: any[] = [];
+
     // If there's a CSV file reference, add it
     if (request.testDataFile) {
-      tests.push(`file:${request.testDataFile}`);
+      tests.push(`file://${request.testDataFile}`);
     }
 
     // Add inline test cases
     if (request.testCases && request.testCases.length > 0) {
       const inlineTests = request.testCases.map((testCase) => {
-        const testConfig = {};
+        const testConfig: any = {};
 
         // Add input variables - ensure query is properly formatted
         if (testCase.input) {
@@ -125,20 +147,20 @@ class PromptfooEvaluationService {
             testConfig.vars = {
               query: testCase.input,
               expectedAnswer:
-                testCase.expected || "A relevant and accurate response",
+                testCase.expectedOutput || "A relevant and accurate response",
             };
           } else {
             // If input is an object, use it directly but ensure expectedAnswer is set
             testConfig.vars = {
-              ...testCase.input,
+              ...testCase.vars,
               expectedAnswer:
-                testCase.expected || "A relevant and accurate response",
+                testCase.expectedOutput || "A relevant and accurate response",
             };
           }
         }
 
         // Add assertions
-        const assertions = [];
+        const assertions: any[] = [];
 
         // Add expected output assertion if provided
         if (testCase.expectedOutput) {
@@ -157,7 +179,7 @@ class PromptfooEvaluationService {
 
       tests.push(...inlineTests);
     }
-    console.log("tests", tests);
+
     // If no test cases provided but we have prompts, create a simple test case
     if (tests.length === 0 && prompts.length > 0) {
       tests.push({
@@ -170,7 +192,7 @@ class PromptfooEvaluationService {
     }
 
     // Build the final config object
-    const config = {
+    const config: PromptfooConfig = {
       description:
         request.description || "MAPE System Prompt Evaluation with LLM Grading",
       providers: providers,
@@ -190,7 +212,7 @@ class PromptfooEvaluationService {
   }
 
   // Helper method to get criteria-specific prompts
-  getCriteriaPrompt(criteriaName) {
+  getCriteriaPrompt(criteriaName: any): string {
     const criteriaPrompts = {
       accuracy: `Evaluate the accuracy of the AI response. Consider:
                 1. Factual correctness
@@ -208,24 +230,24 @@ class PromptfooEvaluationService {
     };
 
     return (
-      criteriaPrompts[criteriaName.toLowerCase()] ||
+      (criteriaPrompts as any)[criteriaName.toLowerCase()] ||
       `Evaluate the AI response for ${criteriaName}. Rate from 0-10 based on quality. Expected: {{expectedAnswer}}`
     );
   }
 
-  async extractEvaluationResultsFromFile(filePath) {
+  async extractEvaluationResultsFromFile(filePath: any): Promise<any> {
     try {
       // Read the JSON file
       const evaluationData = await fs.readJson(filePath);
       return await this.extractEvaluationResults(evaluationData);
     } catch (error) {
       throw new Error(
-        `Failed to read evaluation results file: ${error.message}`
+        `Failed to read evaluation results file: ${error instanceof Error ? error.message : error}`,
       );
     }
   }
 
-  async extractEvaluationResults(evaluationData) {
+  async extractEvaluationResults(evaluationData: any): Promise<any> {
     const { results, config, prompts } = evaluationData;
 
     // Extract summary information
@@ -235,45 +257,47 @@ class PromptfooEvaluationService {
     const failedTests = results.stats.failures;
 
     // Extract results array with relevant information
-    const extractedResults = results.results.map((result, index) => {
-      // Extract component results for grading details
-      let gradingResult = {
-        pass: result.gradingResult?.pass || false,
-        score: 0,
-        reason: null,
-      };
+    const extractedResults = results.results.map(
+      (result: any, index: number) => {
+        // Extract component results for grading details
+        let gradingResult = {
+          pass: result.gradingResult?.pass || false,
+          score: 0,
+          reason: null,
+        };
 
-      // Get score and reason from componentResults if available
-      if (
-        result.gradingResult?.componentResults &&
-        result.gradingResult.componentResults.length > 0
-      ) {
-        const component = result.gradingResult.componentResults[0]; // Take first component
-        gradingResult.score = component.score || 0;
-        gradingResult.reason = component.reason || null;
-        gradingResult.pass = component.pass || false;
-      }
+        // Get score and reason from componentResults if available
+        if (
+          result.gradingResult?.componentResults &&
+          result.gradingResult.componentResults.length > 0
+        ) {
+          const component = result.gradingResult.componentResults[0]; // Take first component
+          gradingResult.score = component.score || 0;
+          gradingResult.reason = component.reason || null;
+          gradingResult.pass = component.pass || false;
+        }
 
-      return {
-        id: result.id,
-        testIdx: result.testIdx,
-        success: result.success,
-        score: gradingResult.score, // Use component score directly
-        reason: gradingResult.reason,
-        prompt: results.prompts[index]?.raw || null,
-        response: result.response?.output || null,
-        vars: result.vars,
-        latencyMs: result.latencyMs,
-        cost: result.cost,
-        tokenUsage: result.response?.tokenUsage || null,
-        passed: gradingResult.pass,
-      };
-    });
+        return {
+          id: result.id,
+          testIdx: result.testIdx,
+          success: result.success,
+          score: gradingResult.score, // Use component score directly
+          reason: gradingResult.reason,
+          prompt: results.prompts[index]?.raw || null,
+          response: result.response?.output || null,
+          vars: result.vars,
+          latencyMs: result.latencyMs,
+          cost: result.cost,
+          tokenUsage: result.response?.tokenUsage || null,
+          passed: gradingResult.pass,
+        };
+      },
+    );
 
     // Calculate average score from component results
     const totalScore = extractedResults.reduce(
-      (sum, result) => sum + (result.score || 0),
-      0
+      (sum: any, result: any) => sum + (result.score || 0),
+      0,
     );
     const averageScore = totalTests > 0 ? totalScore / totalTests : 0;
 
@@ -307,26 +331,26 @@ class PromptfooEvaluationService {
         logger.info("Starting error clustering analysis...");
         const clusteringResults =
           await this.errorClusteringService.clusterFailedTests(baseResults);
-        baseResults.errorClusters = clusteringResults;
+        (baseResults as any).errorClusters = clusteringResults;
         logger.info(
-          `Error clustering completed. Found ${clusteringResults.clusters.length} clusters.`
+          `Error clustering completed. Found ${clusteringResults.clusters.length} clusters.`,
         );
       } catch (error) {
         logger.error("Error clustering failed:", error);
         // Don't fail the entire evaluation if clustering fails
-        baseResults.errorClusters = {
+        (baseResults as any).errorClusters = {
           clusters: [],
           summary: {
             totalFailed: failedTests,
             clustersFound: 0,
             analysisTime: new Date().toISOString(),
-            error: error.message,
+            error: error instanceof Error ? error.message : String(error),
           },
           insights: "Error clustering analysis failed",
         };
       }
     } else {
-      baseResults.errorClusters = {
+      (baseResults as any).errorClusters = {
         clusters: [],
         summary: {
           totalFailed: 0,
@@ -340,11 +364,11 @@ class PromptfooEvaluationService {
     return baseResults;
   }
 
-  async runEvaluation(configPath, evaluationId) {
+  async runEvaluation(configPath: any, evaluationId: any): Promise<any> {
     return new Promise((resolve, reject) => {
       const outputPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`
+        `results-${evaluationId}.json`,
       );
       const args = ["promptfoo", "eval", "-c", configPath, "-o", outputPath];
 
@@ -354,7 +378,7 @@ class PromptfooEvaluationService {
       const evalEnv = {
         ...process.env,
         GOOGLE_API_KEY:
-          process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || "",
+          process.env["GEMINI_API_KEY"] || process.env["GOOGLE_API_KEY"] || "",
       };
 
       const child = spawn("npx", args, {
@@ -396,8 +420,8 @@ class PromptfooEvaluationService {
           if (code !== 0 && code !== 100) {
             reject(
               new Error(
-                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`
-              )
+                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`,
+              ),
             );
             return;
           }
@@ -407,9 +431,8 @@ class PromptfooEvaluationService {
             logger.warn("Evaluation completed with test failures");
           }
 
-          const extractedData = await this.extractEvaluationResultsFromFile(
-            outputPath
-          );
+          const extractedData =
+            await this.extractEvaluationResultsFromFile(outputPath);
           console.log(JSON.stringify(extractedData, null, 2));
 
           // QUAN TRỌNG: Phải resolve() thay vì return
@@ -421,11 +444,11 @@ class PromptfooEvaluationService {
       });
     });
   }
-  async getEvaluationResults(evaluationId) {
+  async getEvaluationResults(evaluationId: any): Promise<EvaluationResults> {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`
+        `results-${evaluationId}.json`,
       );
       const resultsExist = await fs.pathExists(resultsPath);
 
@@ -465,7 +488,10 @@ class PromptfooEvaluationService {
       }
 
       // Sort by creation date (newest first)
-      evaluations.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      evaluations.sort(
+        (a, b) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
 
       return evaluations;
     } catch (error) {
@@ -474,15 +500,15 @@ class PromptfooEvaluationService {
     }
   }
 
-  async deleteEvaluation(evaluationId) {
+  async deleteEvaluation(evaluationId: any): Promise<void> {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`
+        `results-${evaluationId}.json`,
       );
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`
+        `eval-${evaluationId}.yaml`,
       );
 
       // Delete results file
@@ -498,14 +524,13 @@ class PromptfooEvaluationService {
       }
 
       logger.info(`Deleted evaluation: ${evaluationId}`);
-      return true;
     } catch (error) {
       logger.error("Error deleting evaluation:", error);
       throw error;
     }
   }
 
-  formatResultsForUI(results) {
+  formatResultsForUI(results: any): any {
     try {
       // Extract key metrics and format for frontend consumption
       const summary = {
@@ -516,10 +541,10 @@ class PromptfooEvaluationService {
         totalScore: 0,
       };
 
-      const detailedResults = [];
+      const detailedResults: any[] = [];
 
       if (results.results) {
-        results.results.forEach((result, index) => {
+        results.results.forEach((result: any, index: number) => {
           const testResult = {
             id: result.id || index,
             prompt: result.prompt || result.prompt || "No prompt",
@@ -537,7 +562,7 @@ class PromptfooEvaluationService {
             let maxScore = 0;
             let passedAssertions = 0;
 
-            result.gradingResult.componentResults.forEach((component) => {
+            result.gradingResult.componentResults.forEach((component: any) => {
               const assertionResult = {
                 type: component.assertion?.type || "unknown",
                 score: component.score || 0,
@@ -547,7 +572,7 @@ class PromptfooEvaluationService {
                 value: component.assertion?.value || "",
               };
 
-              testResult.assertions.push(assertionResult);
+              (testResult.assertions as any[]).push(assertionResult);
               totalScore += assertionResult.score;
               maxScore += assertionResult.maxScore;
 
@@ -559,7 +584,8 @@ class PromptfooEvaluationService {
             // Calculate overall score for this test
             testResult.score = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
             testResult.passed = result.gradingResult.pass || false;
-            testResult.overallGradingScore = result.gradingResult.score || 0;
+            (testResult as any).overallGradingScore =
+              result.gradingResult.score || 0;
 
             if (testResult.passed) {
               summary.passedTests++;
@@ -580,7 +606,7 @@ class PromptfooEvaluationService {
 
           // Add error information if present
           if (result.error) {
-            testResult.error = result.error;
+            (testResult as any).error = result.error;
           }
 
           detailedResults.push(testResult);
@@ -592,7 +618,7 @@ class PromptfooEvaluationService {
 
       return {
         summary,
-        results: detailedResults,
+        results: detailedResults as any[],
         metadata: {
           prompts: results.prompts || [],
           providers: results.config?.providers || [],
@@ -607,4 +633,4 @@ class PromptfooEvaluationService {
   }
 }
 
-module.exports = PromptfooEvaluationService;
+export default PromptfooEvaluationService;

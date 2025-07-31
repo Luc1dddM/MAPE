@@ -11,3 +11,5 @@ build/
 coverage/
 *.tgz
 *.tar.gz
+backend/evaluations/
+backend/evaluation-results/

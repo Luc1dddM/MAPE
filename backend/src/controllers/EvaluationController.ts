@@ -1,25 +1,39 @@
-const PromptfooEvaluationService = require("../services/PromptfooEvaluationService");
-const logger = require("../utils/logger");
+import { Request, Response } from "express";
+import PromptfooEvaluationService from "../services/PromptfooEvaluationService.js";
+import ErrorClusteringService from "../services/ErrorClusteringService.js";
+import logger from "../utils/logger.js";
+import fs from "fs-extra";
+import path from "path";
+import {
+  EvaluationResults,
+  EvaluationRequest,
+  ProviderInfo,
+  CriteriaInfo,
+  ComponentResult,
+} from "../types/evaluation.js";
 
 class EvaluationController {
+  private evaluationService: PromptfooEvaluationService;
+  private clusteringService: ErrorClusteringService;
+
   constructor() {
     this.evaluationService = new PromptfooEvaluationService();
+    this.clusteringService = new ErrorClusteringService();
   }
 
   // Create and run a new evaluation
-  async createEvaluation(req, res) {
+  async createEvaluation(req: Request, res: Response): Promise<void> {
     try {
       const evaluationRequest = req.body;
-      evaluationRequest.testDataFile = req.file;
       console.log(
         "Received evaluation request:",
-        JSON.stringify(evaluationRequest, null, 2)
+        JSON.stringify(evaluationRequest, null, 2),
       );
 
       // Debug: Log the full request body
       logger.info(
         "Full request body received:",
-        JSON.stringify(req.body, null, 2)
+        JSON.stringify(req.body, null, 2),
       );
 
       logger.info("Creating new evaluation:", {
@@ -30,9 +44,8 @@ class EvaluationController {
         hasCriteria: !!evaluationRequest.evaluationCriteria,
       });
 
-      const result = await this.evaluationService.evaluatePrompts(
-        evaluationRequest
-      );
+      const result =
+        await this.evaluationService.evaluatePrompts(evaluationRequest);
 
       console.log("Evaluation result:", JSON.stringify(result, null, 2));
 
@@ -45,10 +58,10 @@ class EvaluationController {
           evaluationId: result.evaluationId,
           configPath: result.configPath,
           timestamp: result.timestamp,
-          summary: result.results.summary,
-          results: result.results.results,
-          metadata: result.results.metadata,
-          errorClusters: result.results.errorClusters,
+          summary: result.results?.summary,
+          results: result.results?.results,
+          metadata: result.results?.metadata,
+          errorClusters: result.results?.errorClusters,
         },
       });
     } catch (error) {
@@ -56,21 +69,20 @@ class EvaluationController {
       res.status(500).json({
         success: false,
         error: "Failed to create evaluation",
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   // Get evaluation results by ID
-  async getEvaluation(req, res) {
+  async getEvaluation(req: Request, res: Response): Promise<void> {
     try {
       const { evaluationId } = req.params;
 
       logger.info(`Getting evaluation results for ID: ${evaluationId}`);
 
-      const results = await this.evaluationService.getEvaluationResults(
-        evaluationId
-      );
+      const results =
+        await this.evaluationService.getEvaluationResults(evaluationId);
       // const formattedResults = this.evaluationService.formatResultsForUI(results);
 
       res.status(200).json({
@@ -86,24 +98,26 @@ class EvaluationController {
     } catch (error) {
       logger.error("Error in getEvaluation:", error);
 
-      if (error.message.includes("not found")) {
+      if (error instanceof Error && error.message.includes("not found")) {
         res.status(404).json({
           success: false,
           error: "Evaluation not found",
           message: error.message,
         });
+        return;
       } else {
         res.status(500).json({
           success: false,
           error: "Failed to retrieve evaluation",
-          message: error.message,
+          message: error instanceof Error ? error.message : "Unknown error",
         });
+        return;
       }
     }
   }
 
   // List all evaluations
-  async listEvaluations(req, res) {
+  async listEvaluations(req: Request, res: Response): Promise<void> {
     try {
       logger.info("Listing all evaluations");
 
@@ -121,13 +135,13 @@ class EvaluationController {
       res.status(500).json({
         success: false,
         error: "Failed to list evaluations",
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   // Delete an evaluation
-  async deleteEvaluation(req, res) {
+  async deleteEvaluation(req: Request, res: Response): Promise<void> {
     try {
       const { evaluationId } = req.params;
 
@@ -144,13 +158,13 @@ class EvaluationController {
       res.status(500).json({
         success: false,
         error: "Failed to delete evaluation",
-        message: error.message,
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   // Get evaluation status (for long-running evaluations)
-  async getEvaluationStatus(req, res) {
+  async getEvaluationStatus(req: Request, res: Response): Promise<void> {
     try {
       const { evaluationId } = req.params;
 
@@ -165,7 +179,7 @@ class EvaluationController {
           },
         });
       } catch (error) {
-        if (error.message.includes("not found")) {
+        if (error instanceof Error && error.message.includes("not found")) {
           res.status(200).json({
             success: true,
             data: {
@@ -182,15 +196,15 @@ class EvaluationController {
       res.status(500).json({
         success: false,
         error: "Failed to get evaluation status",
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   // Get available evaluation criteria
-  async getEvaluationCriteria(req, res) {
+  async getEvaluationCriteria(req: Request, res: Response): Promise<void> {
     try {
-      const criteria = [
+      const criteria: CriteriaInfo[] = [
         {
           name: "accuracy",
           description:
@@ -239,13 +253,13 @@ class EvaluationController {
       res.status(500).json({
         success: false,
         error: "Failed to get evaluation criteria",
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
 
   // Download evaluation results file
-  async downloadEvaluation(req, res) {
+  async downloadEvaluation(req: Request, res: Response): Promise<void> {
     try {
       const { evaluationId } = req.params;
       const { format = "json" } = req.query;
@@ -253,15 +267,15 @@ class EvaluationController {
       logger.info(`Downloading evaluation ${evaluationId} in ${format} format`);
 
       // Get the evaluation results
-      const results = await this.evaluationService.getEvaluationResults(
-        evaluationId
-      );
+      const results =
+        await this.evaluationService.getEvaluationResults(evaluationId);
 
       if (!results) {
-        return res.status(404).json({
+        res.status(404).json({
           success: false,
           error: "Evaluation not found",
         });
+        return;
       }
 
       // Set appropriate headers for file download
@@ -277,15 +291,16 @@ class EvaluationController {
         contentType = "text/csv";
         content = this.convertResultsToCSV(results);
       } else {
-        return res.status(400).json({
+        res.status(400).json({
           success: false,
           error: "Unsupported format. Use json or csv.",
         });
+        return;
       }
 
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="${filename}"`
+        `attachment; filename="${filename}"`,
       );
       res.setHeader("Content-Type", contentType);
       res.send(content);
@@ -294,13 +309,13 @@ class EvaluationController {
       res.status(500).json({
         success: false,
         error: "Failed to download evaluation",
-        message: error.message,
+        message: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
   // Helper method to convert results to CSV format
-  convertResultsToCSV(results) {
+  convertResultsToCSV(results: EvaluationResults) {
     if (!results.results || results.results.length === 0) {
       return "No results available";
     }
@@ -319,15 +334,15 @@ class EvaluationController {
     const rows = results.results.map((result) => {
       const assertionsSummary =
         result.gradingResult?.componentResults
-          ?.map((comp) => `${comp.assertion?.type}: ${comp.score}/10`)
+          ?.map(
+            (comp: ComponentResult) =>
+              `${comp.assertion?.type}: ${comp.score}/10`,
+          )
           .join("; ") || "No assertions";
 
       return [
         result.id || "",
-        `"${(result.prompt?.raw || result.prompt?.label || "").replace(
-          /"/g,
-          '""'
-        )}"`,
+        `"${(result.prompt?.raw || result.prompt?.label || "").replace(/"/g, '""')}"`,
         `"${(result.response?.output || "").replace(/"/g, '""')}"`,
         result.gradingResult?.score || 0,
         result.gradingResult?.pass || false,
@@ -338,16 +353,16 @@ class EvaluationController {
     });
 
     const csvContent = [headers.join(",")]
-      .concat(rows.map((row) => row.join(",")))
+      .concat(rows.map((row: any[]) => row.join(",")))
       .join("\n");
 
     return csvContent;
   }
 
   // Get available providers
-  async getProviders(req, res) {
+  async getProviders(req: Request, res: Response): Promise<void> {
     try {
-      const providers = [
+      const providers: ProviderInfo[] = [
         {
           id: "google:gemini-2.0-flash-lite",
           name: "Google Gemini 2.0 Flash Lite",
@@ -368,20 +383,10 @@ class EvaluationController {
       res.status(500).json({
         success: false,
         error: "Failed to get providers",
-        message: error.message,
+        message: error instanceof Error ? error.message : "Unknown error",
       });
     }
   }
-
-  uploadTestData(req, res) {
-    if (!req.file) {
-      return res
-        .status(400)
-        .json({ success: false, message: "No file uploaded" });
-    }
-    // Có thể xử lý file ở đây (ví dụ: parse CSV, lưu DB, ...)
-    res.json({ success: true, filePath: req.file.path });
-  }
 }
 
-module.exports = EvaluationController;
+export default EvaluationController;
