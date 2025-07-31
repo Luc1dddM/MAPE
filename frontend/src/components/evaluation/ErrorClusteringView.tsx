@@ -100,7 +100,7 @@ const ErrorClusteringView: React.FC<ErrorClusteringViewProps> = ({ clusteringRes
           </div>
           <div className="text-center">
             <div className="text-2xl font-bold text-green-600">
-              {clusteringResults.clusters.reduce((acc, cluster) => acc + cluster.avgSimilarity, 0) / clusteringResults.clusters.length || 0}%
+              {clusteringResults.clusters.reduce((acc, cluster) => acc + cluster.avgSimilarity, 0) / clusteringResults.clusters.length || 0}
             </div>
             <div className="text-sm text-gray-600">Avg Similarity</div>
           </div>

@@ -144,31 +144,31 @@ export interface ApiError {
   }>;
 }
 
-export type TechniqueType = 
-  | 'few-shot'
-  | 'chain-of-thought'
-  | 'zero-shot'
-  | 'role-based'
-  | 'template-based'
-  | 'iterative-refinement';
+export type TechniqueType =
+  | "few-shot"
+  | "chain-of-thought"
+  | "zero-shot"
+  | "role-based"
+  | "template-based"
+  | "iterative-refinement";
 
 export interface TechniqueParameters {
-  'few-shot'?: {
+  "few-shot"?: {
     numExamples?: number;
   };
-  'chain-of-thought'?: {
+  "chain-of-thought"?: {
     reasoningSteps?: number;
   };
-  'zero-shot'?: {
+  "zero-shot"?: {
     tone?: string;
   };
-  'role-based'?: {
+  "role-based"?: {
     role?: string;
   };
-  'template-based'?: {
+  "template-based"?: {
     templateStructure?: string;
   };
-  'iterative-refinement'?: {
+  "iterative-refinement"?: {
     iterations?: number;
   };
 }
@@ -203,8 +203,9 @@ export interface TestCase {
 export interface PromptfooEvaluationRequest {
   prompts: string[];
   testCases?: TestCase[];
-  testDataFile?: string;
-  providers?: Provider[];
+  testDataFile?: File[];
+  csvFile?: File;
+  providers?: string[] | Provider[];
   evaluationCriteria?: EvaluationCriteria[];
   description?: string;
 }
@@ -221,10 +222,12 @@ export interface AssertionResult {
 export interface ErrorCluster {
   id: number;
   size: number;
-  tests: Array<EvaluationResult & {
-    errorText: string;
-    similarity: number;
-  }>;
+  tests: Array<
+    EvaluationResult & {
+      errorText: string;
+      similarity: number;
+    }
+  >;
   representativeError: string;
   avgSimilarity: number;
   category: {
@@ -321,7 +324,7 @@ export interface EvaluationStatusResponse {
   success: boolean;
   data: {
     evaluationId: string;
-    status: 'running' | 'completed' | 'failed';
+    status: "running" | "completed" | "failed";
   };
 }
 

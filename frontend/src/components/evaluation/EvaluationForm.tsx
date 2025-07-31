@@ -1,46 +1,33 @@
-import React, { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
-import { useQuery } from '@tanstack/react-query';
-import { Button } from '@/components/ui/Button';
-import { Card, Badge } from '@/components/ui';
-import { evaluationService } from '@/services/api';
+import React, { useState } from "react";
+import { useForm, useFieldArray } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui";
+import { evaluationService } from "@/services/api";
 import {
   PromptfooEvaluationRequest,
   EvaluationCriteria,
-  Provider,
-  TestCase,
   EvaluationSummary,
   EvaluationResult,
   EvaluationMetadata,
-  ErrorClusteringResults
-} from '@/types/api';
+  ErrorClusteringResults,
+  TestCase,
+} from "@/types/api";
+import PromptsStep from "./steps/PromptsStep";
+import TestsStep from "./steps/TestsStep";
+import ConfigStep from "./steps/ConfigStep";
+import Stepper from "./steps/Stepper";
+import {
+  evaluationFormSchema,
+  type EvaluationFormData as ValidationFormData,
+} from "./steps/validation";
 
+// Use the validated form data type from validation schema
+type EvaluationFormData = ValidationFormData;
 
-// Form data interface
-interface EvaluationFormData {
-  name: string;
-  description: string;
-  prompts: Array<{
-    content: string;
-    name: string;
-  }>;
-  testCases: Array<{
-    input: string;
-    expected?: string;
-    description?: string;
-  }>;
-  providers: Array<{
-    id: string;
-    name: string;
-  }>;
-  evaluationCriteria: string[]; // Chỉ lưu mảng các giá trị đã chọn
-  additionalConfig?: {
-    timeout?: number;
-    maxConcurrency?: number;
-    outputPath?: string;
-  };
-}
-
+// Props interface
 interface EvaluationFormProps {
   onEvaluationStart: (evaluationData: {
     summary: EvaluationSummary;
@@ -56,9 +43,8 @@ interface EvaluationFormProps {
 export const EvaluationForm: React.FC<EvaluationFormProps> = ({
   onEvaluationStart,
 }) => {
-  const [activeTab, setActiveTab] = useState<"prompts" | "tests" | "config">(
-    "prompts"
-  );
+  const steps = ["Prompts", "Test Cases", "Configuration"];
+  const [currentStep, setCurrentStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Fetch available providers
@@ -73,26 +59,17 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
     queryFn: () => evaluationService.getCriteria(),
   });
 
-  const {
-    register,
-    control,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<EvaluationFormData>({
+  // Initialize form with Zod resolver
+  const formMethods = useForm<EvaluationFormData>({
+    resolver: zodResolver(evaluationFormSchema),
+    mode: "onChange", // Enable real-time validation
     defaultValues: {
       name: "",
       description: "",
       prompts: [{ content: "", name: "" }],
       testCases: [{ input: "", expected: "", description: "" }],
-      providers:
-        providersData?.data.providers.map((provider: any) => ({
-          id: provider.id,
-          name: provider.name || provider.id,
-        })) || [],
-      evaluationCriteria:
-        criteriaData?.data.criteria.map((criteria: any) => criteria.name) || [],
+      providers: [],
+      evaluationCriteria: [],
       additionalConfig: {
         timeout: 30000,
         maxConcurrency: 5,
@@ -100,6 +77,15 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
       },
     },
   });
+
+  const {
+    control,
+    handleSubmit,
+    watch,
+    setValue,
+    trigger,
+    formState: { errors },
+  } = formMethods;
 
   const {
     fields: promptFields,
@@ -124,10 +110,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
     if (providersData?.data.providers) {
       setValue(
         "providers",
-        providersData.data.providers.map((provider: any) => ({
-          id: provider.id,
-          name: provider.name || provider.id,
-        }))
+        providersData.data.providers.map((provider: any) => provider.id)
       );
     }
   }, [providersData, setValue]);
@@ -141,43 +124,87 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
     }
   }, [criteriaData, setValue]);
 
+  // Submit function with CSV file handling
   const onSubmit = async (data: EvaluationFormData) => {
-    console.log('Submitting evaluation data:', data.testCases);
+    console.log("SubmitData:", data);
     setIsSubmitting(true);
-    console.log("Submitting evaluation data:", data);
     try {
-      // Chỉ lấy các tiêu chí đã chọn
-      const selectedCriteriaNames = data.evaluationCriteria || [];
-      // Chỉ lấy các provider đã chọn
-      const selectedProviders = Array.isArray(data.providers)
-        ? data.providers.filter((p) => typeof p === "string")
+      // Get CSV file from form data or TestsStep component
+      let fileToUpload: File | null = null;
+
+      // Check if csvFile is set in form data (from react-hook-form)
+      if (data.csvFile && data.csvFile instanceof File) {
+        fileToUpload = data.csvFile;
+      }
+      // Fallback to getSelectedFile method
+      else if (typeof (formMethods as any).getSelectedFile === "function") {
+        fileToUpload = (formMethods as any).getSelectedFile();
+      }
+
+      console.log("File to upload:", fileToUpload);
+
+      // Ensure providers is always an array of strings (provider IDs)
+      const selectedProviders: string[] = Array.isArray(data.providers)
+        ? data.providers.filter(
+            (p: any) => typeof p === "string" && p.length > 0
+          )
         : [];
 
-      const selectedCriteria: EvaluationCriteria[] =
-        criteriaData?.data.criteria
-          .filter((c: any) => selectedCriteriaNames.includes(c.name))
-          .map((c: any) => ({
-            name: c.name,
-            description: c.description,
-            enabled: true,
-          })) ?? [];
+      // Normalize criteria to array of strings (just the names)
+      const selectedCriteriaNames: string[] = data.evaluationCriteria || [];
 
-      const request: PromptfooEvaluationRequest = {
-        description: data.description,
-        prompts: data.prompts.map((p: any) => p.content),
-        testCases: data.testCases.map((tc: any) => ({
-          input: tc.input,
-          expected: tc.expected,
-          description: tc.description,
-        })),
-        providers: selectedProviders,
-        evaluationCriteria: selectedCriteria,
+      // Prepare test cases - either from manual input or empty array if using CSV
+      const testCases: any[] = [];
+      if (!fileToUpload && data.testCases) {
+        data.testCases.forEach((tc) => {
+          if (tc.input && tc.input.trim()) {
+            testCases.push({
+              description: tc.description || "",
+              input: tc.input,
+              expected: tc.expected || "",
+            });
+          }
+        });
+      }
+
+      // Prepare the request payload
+      const requestPayload: any = {
+        description: data.description || "",
+        prompts: data.prompts.map((p) => p.content),
+        ...(testCases.length > 0 && { testCases }),
+        ...(selectedProviders.length > 0 && { providers: selectedProviders }),
+        ...(selectedCriteriaNames.length > 0 && {
+          evaluationCriteria: selectedCriteriaNames,
+        }),
       };
 
-      const response = await evaluationService.runEvaluation(request);
+      console.log("Request payload:", requestPayload);
+
+      // Create FormData
+      const formData = new FormData();
+
+      // Add all data as JSON string
+      formData.append("data", JSON.stringify(requestPayload));
+
+      // Add CSV file if exists
+      if (fileToUpload) {
+        formData.append("testDataFile", fileToUpload);
+        console.log("Sending with file:", fileToUpload.name);
+      } else {
+        console.log("Sending without file");
+      }
+
+      // // Debug: Log all FormData entries
+      // console.log("FormData entries:");
+      // for (let [key, value] of formData.entries()) {
+      //   console.log(key, ":", typeof value === "string" ? value : "File");
+      // }
+
+      // Always use the file upload endpoint now
+      const response = await evaluationService.runEvaluationWithFile(formData);
 
       if (response.success && response.data) {
-        // Pass the complete evaluation data
+        toast.success("Evaluation started successfully!");
         onEvaluationStart({
           summary: response.data.summary,
           results: response.data.results,
@@ -190,339 +217,164 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
       }
     } catch (error) {
       console.error("Failed to start evaluation:", error);
+      toast.error("Failed to start evaluation. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const tabs = [
-    { id: "prompts", label: "Prompts", count: promptFields.length },
-    { id: "tests", label: "Test Cases", count: testFields.length },
-    { id: "config", label: "Configuration", count: 0 },
-  ];
+  // Function to validate current step
+  const validateCurrentStep = async () => {
+    let fieldsToValidate: (keyof EvaluationFormData)[] = [];
+
+    if (currentStep === 0) {
+      // Validate prompts step
+      fieldsToValidate = ["prompts"];
+      const isValid = await trigger(fieldsToValidate);
+      if (!isValid) {
+        toast.error("Please fill in all required prompt fields correctly.");
+        return false;
+      }
+    } else if (currentStep === 1) {
+      // Validate test cases step using custom logic from TestsStep
+      if (typeof (formMethods as any).isTestStepValid === "function") {
+        const isValid = (formMethods as any).isTestStepValid();
+        if (!isValid) {
+          toast.error(
+            "Please provide test cases either manually or upload a CSV file."
+          );
+          return false;
+        }
+
+        // Sync CSV data to form if using CSV mode
+        if (typeof (formMethods as any).syncCsvToForm === "function") {
+          (formMethods as any).syncCsvToForm();
+        }
+      } else {
+        // Fallback validation
+        const hasTestCases = watch("testCases")?.some((tc) => tc.input?.trim());
+        const hasCSVFile = watch("csvFile");
+
+        if (!hasTestCases && !hasCSVFile) {
+          toast.error(
+            "Please provide test cases either manually or upload a CSV file."
+          );
+          return false;
+        }
+      }
+    } else if (currentStep === 2) {
+      // Validate configuration step
+      fieldsToValidate = [
+        "providers",
+        "evaluationCriteria",
+        "additionalConfig",
+      ];
+      const isValid = await trigger(fieldsToValidate);
+      if (!isValid) {
+        toast.error("Please complete all configuration fields correctly.");
+        return false;
+      }
+    }
+
+    return true;
+  };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-      {/* Header */}
+    <form className="space-y-6 relative" onSubmit={handleSubmit(onSubmit)}>
+      <div className="mt-4">
+        <Stepper steps={steps} currentStep={currentStep} />
+      </div>
       <Card
         title="Create New Evaluation"
         description="Set up a comprehensive prompt evaluation with multiple techniques and test cases"
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Evaluation Name
-            </label>
-            <input
-              {...register("name", { required: "Name is required" })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g., Customer Service Prompts v1"
-            />
-            {errors.name && (
-              <p className="text-red-600 text-sm mt-1">{errors.name.message}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description
-            </label>
-            <input
-              {...register("description")}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Brief description of the evaluation purpose"
-            />
-          </div>
+        {currentStep === 0 && (
+          <PromptsStep
+            form={formMethods}
+            promptFields={promptFields}
+            appendPrompt={appendPrompt}
+            removePrompt={removePrompt}
+            errors={errors}
+          />
+        )}
+        {currentStep === 1 && (
+          <TestsStep
+            form={formMethods}
+            testFields={testFields}
+            appendTest={appendTest}
+            removeTest={removeTest}
+            errors={formMethods.formState.errors}
+          />
+        )}
+        {currentStep === 2 && (
+          <ConfigStep
+            form={formMethods}
+            providersData={providersData}
+            criteriaData={criteriaData}
+            errors={formMethods.formState.errors}
+          />
+        )}
+        <div className="flex justify-between space-x-3 mt-6">
+          {currentStep > 0 && (
+            <Button
+              type="button"
+              onClick={() => setCurrentStep(currentStep - 1)}
+              className="px-6 py-2"
+            >
+              Back
+            </Button>
+          )}
+          {currentStep < steps.length - 1 && (
+            <Button
+              type="button"
+              className="px-6 py-2"
+              onClick={async () => {
+                const isValid = await validateCurrentStep();
+                if (isValid) {
+                  setCurrentStep(currentStep + 1);
+                }
+              }}
+            >
+              Next
+            </Button>
+          )}
+          {currentStep === steps.length - 1 && (
+            <Button
+              type="submit"
+              loading={isSubmitting}
+              disabled={isSubmitting}
+              className="px-6 py-2"
+            >
+              {isSubmitting ? "Starting Evaluation..." : "Start Evaluation"}
+            </Button>
+          )}
         </div>
       </Card>
-
-      {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-            >
-              {tab.label}
-              {tab.count > 0 && (
-                <Badge className="ml-2" variant="primary">
-                  {tab.count}
-                </Badge>
-              )}
-            </button>
-          ))}
-        </nav>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === "prompts" && (
-        <Card
-          title="Prompts"
-          description="Add the prompts you want to evaluate"
-        >
-          <div className="space-y-4">
-            {promptFields.map((field, index) => (
-              <div
-                key={field.id}
-                className="border border-gray-200 rounded-lg p-4"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="text-sm font-medium text-gray-900">
-                    Prompt {index + 1}
-                  </h4>
-                  {promptFields.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removePrompt(index)}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-3">
-                  <input
-                    {...register(`prompts.${index}.name`, {
-                      required: "Name is required",
-                    })}
-                    placeholder="Prompt name"
-                    className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <textarea
-                  {...register(`prompts.${index}.content`, {
-                    required: "Content is required",
-                  })}
-                  placeholder="Enter your prompt here..."
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-
-                {errors.prompts?.[index] && (
-                  <p className="text-red-600 text-sm mt-1">
-                    {errors.prompts[index]?.content?.message ||
-                      errors.prompts[index]?.name?.message}
-                  </p>
-                )}
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={() => appendPrompt({ content: "", name: "" })}
-              className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700"
-            >
-              + Add Another Prompt
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {activeTab === "tests" && (
-        <Card
-          title="Test Cases"
-          description="Define test inputs and expected outputs"
-        >
-          <div className="space-y-4">
-            {testFields.map((field, index) => (
-              <div
-                key={field.id}
-                className="border border-gray-200 rounded-lg p-4"
-              >
-                <div className="flex justify-between items-start mb-3">
-                  <h4 className="text-sm font-medium text-gray-900">
-                    Test Case {index + 1}
-                  </h4>
-                  {testFields.length > 1 && (
-                    <button
-                      type="button"
-                      onClick={() => removeTest(index)}
-                      className="text-red-600 hover:text-red-800 text-sm"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-3">
-                  <input
-                    {...register(`testCases.${index}.description`)}
-                    placeholder="Test description (optional)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-
-                  <textarea
-                    {...register(`testCases.${index}.input`, {
-                      required: "Input is required",
-                    })}
-                    placeholder="Test input..."
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-
-                  <textarea
-                    {...register(`testCases.${index}.expected`)}
-                    placeholder="Expected output (optional)..."
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                {errors.testCases?.[index]?.input && (
-                  <p className="text-red-600 text-sm mt-1">
-                    {errors.testCases[index]?.input?.message}
-                  </p>
-                )}
-              </div>
-            ))}
-
-            <button
-              type="button"
-              onClick={() =>
-                appendTest({ input: "", expected: "", description: "" })
-              }
-              className="w-full px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-gray-400 hover:text-gray-700"
-            >
-              + Add Another Test Case
-            </button>
-          </div>
-        </Card>
-      )}
-
-      {activeTab === "config" && (
-        <div className="space-y-6">
-          {/* Providers Selection */}
-          <Card
-            title="AI Providers"
-            description="Select the AI models to evaluate against"
+      {isSubmitting && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white bg-opacity-70 rounded-md">
+          <svg
+            className="animate-spin h-10 w-10 text-blue-600"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {providersData?.data.providers.map(
-                (provider: any, index: number) => (
-                  <label
-                    key={index}
-                    className="flex items-center space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50"
-                  >
-                    <input
-                      type="checkbox"
-                      value={provider.id}
-                      {...register("providers")}
-                      defaultChecked={true}
-                      className="form-checkbox h-4 w-4 text-blue-600"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {provider.name || provider.id}
-                      </p>
-                      {provider.description && (
-                        <p className="text-xs text-gray-600">
-                          {provider.description}
-                        </p>
-                      )}
-                    </div>
-                  </label>
-                )
-              )}
-            </div>
-          </Card>
-
-          {/* Evaluation Criteria */}
-          <Card
-            title="Evaluation Criteria"
-            description="Choose what aspects to evaluate"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {criteriaData?.data.criteria.map(
-                (criteria: any, index: number) => (
-                  <label
-                    key={index}
-                    className="flex items-start space-x-3 p-3 border border-gray-200 rounded-lg cursor-pointer hover:bg-gray-50"
-                  >
-                    <input
-                      type="checkbox"
-                      value={criteria.name}
-                      {...register("evaluationCriteria")}
-                      defaultChecked={criteria.enabled}
-                      className="form-checkbox h-4 w-4 text-blue-600 mt-0.5"
-                    />
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">
-                        {criteria.name}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        {criteria.description}
-                      </p>
-                    </div>
-                  </label>
-                )
-              )}
-            </div>
-          </Card>
-
-          {/* Additional Configuration */}
-          <Card
-            title="Advanced Settings"
-            description="Optional configuration for the evaluation"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Timeout (ms)
-                </label>
-                <input
-                  {...register("additionalConfig.timeout")}
-                  type="number"
-                  defaultValue={30000}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Max Concurrency
-                </label>
-                <input
-                  {...register("additionalConfig.maxConcurrency")}
-                  type="number"
-                  defaultValue={5}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Output Path
-                </label>
-                <input
-                  {...register("additionalConfig.outputPath")}
-                  defaultValue="./evaluation-results"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </Card>
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            ></circle>
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8v8z"
+            ></path>
+          </svg>
+          <span className="mt-4 text-lg text-blue-700">Processing...</span>
         </div>
       )}
-
-      {/* Submit Button */}
-      <div className="flex justify-end space-x-3">
-        <Button
-          type="submit"
-          loading={isSubmitting}
-          disabled={isSubmitting}
-          className="px-6 py-2"
-        >
-          {isSubmitting ? "Starting Evaluation..." : "Start Evaluation"}
-        </Button>
-      </div>
     </form>
   );
 };
