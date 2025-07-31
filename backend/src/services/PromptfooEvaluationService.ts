@@ -49,7 +49,7 @@ class PromptfooEvaluationService {
   /**
    * Save uploaded CSV file to temporary location for promptfoo
    */
-  async saveTempCsvFile(csvContent: string | Buffer, evaluationId: string): Promise<string> {
+  async saveTempCsvFile(csvContent: Buffer, evaluationId: string): Promise<string> {
     try {
       const tempDir = path.join(__dirname, "../../temp");
       await fs.ensureDir(tempDir); // Ensure temp directory exists
@@ -248,17 +248,19 @@ class PromptfooEvaluationService {
     }
 
     // Handle tests - support both inline test cases and CSV file references
-    let tests = [];
+    let tests: any = []; // Change to any to support both array and string format
     console.log("request.testDataFile", request.testDataFile);
     console.log("tempCsvPath", tempCsvPath);
     
     // Priority 1: If there's a CSV file reference, add it (and skip inline tests)
     if (tempCsvPath) {
-      tests.push(`file:${tempCsvPath}`);
+      // Use simple format: tests: file:filename.csv
+      tests = tempCsvPath;
       logger.info(`Using CSV file for tests: ${tempCsvPath}`);
     } 
     // Priority 2: Add inline test cases only if no CSV file
     else if (request.testCases && request.testCases.length > 0) {
+      tests = []; // Reset to array for inline tests
       const inlineTests = request.testCases.map((testCase) => {
         const testConfig: any = {};
 
@@ -288,6 +290,7 @@ class PromptfooEvaluationService {
       logger.info(`Using ${inlineTests.length} inline test cases`);
     }
     console.log("tests", tests);
+    
     // If no test cases provided but we have prompts, create a simple test case
     if (tests.length === 0 && prompts.length > 0) {
       tests.push({

@@ -48,7 +48,7 @@ export interface EvaluationCriteria {
 export interface EvaluationRequest {
   prompts: (string | PromptConfig)[];
   testCases?: TestCase[];
-  testDataFile?: string;
+  testDataFile?: Buffer;
   providers: ProviderConfig[];
   evaluationCriteria: string[];
   description?: string;

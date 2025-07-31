@@ -1,0 +1,13 @@
+query,expectedAnswer
+"Heloo chat, im ABCDEF. any gud elec plns for biz use in postcode 2000.","{
+    ""isValid"": true,
+    ""isRelevant"": true,
+    ""cleanedQuery"": ""good electricity plans for business use in New South Wales"",
+    ""reason"": ""Corrected spelling and abbreviations, identified and replaced postcode 2000 with inferred state (New South Wales), and removed greeting and irrelevant text. Determined intent is 'find a plan'.""
+}"
+My dog hates electric bills," {
+  ""cleanedQuery"": ""My dog hates electric bills"",
+  ""isRelevant"": false,
+  ""isValid"": true,
+  ""reason"": ""The query mentions 'electric bills' but in a metaphorical context, not a literal energy service or product inquiry.""
+}"

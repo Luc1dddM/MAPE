@@ -2,7 +2,22 @@
 import multer from 'multer';
 import express, { Request, Response } from 'express';
 
-const upload = multer({ dest: "uploads/" });
+// Configure multer for file uploads with memory storage (simpler approach)
+const upload = multer({ 
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept only CSV files
+    if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only CSV files are allowed'));
+    }
+  }
+});
+
 import parseJsonDataField from "../middleware/parseJsonDataField";
 import EvaluationController from '../controllers/EvaluationController';
 import { validatePromptfooEvaluation } from '../middleware/validation';
@@ -12,6 +27,7 @@ const evaluationController = new EvaluationController();
 
 // Create and run a new evaluation
 
+// Create and run a new evaluation
 router.post('/run', upload.single("testDataFile"), parseJsonDataField, validatePromptfooEvaluation, (req: Request, res: Response) => {
   evaluationController.createEvaluation(req, res);
 });

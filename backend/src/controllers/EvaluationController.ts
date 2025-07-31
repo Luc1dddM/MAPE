@@ -25,6 +25,7 @@ class EvaluationController {
   async createEvaluation(req: Request, res: Response): Promise<void> {
     try {
       const evaluationRequest = req.body;
+      evaluationRequest.testDataFile = req.file;
       console.log(
         "Received evaluation request:",
         JSON.stringify(evaluationRequest, null, 2),
