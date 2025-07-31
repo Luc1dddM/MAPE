@@ -3,7 +3,7 @@ import { Card } from "@/components/ui";
 import { UseFormReturn } from "react-hook-form";
 import { useState } from "react";
 import Papa from "papaparse";
-import { uploadEvaluationCsv } from "@/services/api";
+
 interface TestsStepProps {
   form: UseFormReturn<any>;
   testFields: any[];
@@ -19,13 +19,12 @@ const TestsStep: React.FC<TestsStepProps> = ({
   removeTest,
   errors,
 }) => {
-  const { register } = form;
+  const { register, watch } = form;
   const [inputMode, setInputMode] = useState<"manual" | "csv">("manual");
-  // CSV preview state (sẽ dùng sau)
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
-  const [uploadedCsvPath, setUploadedCsvPath] = useState<string | null>(null);
   const [csvUploading, setCsvUploading] = useState(false);
   const [csvUploadError, setCsvUploadError] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   // Download CSV template
   const handleDownloadTemplate = () => {
@@ -43,35 +42,115 @@ const TestsStep: React.FC<TestsStepProps> = ({
     URL.revokeObjectURL(url);
   };
 
-  // Hàm đồng bộ testCases từ csvPreview vào form
+  // Handle CSV file selection and parsing
+  const handleCsvFileChange = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setSelectedFile(null);
+      setCsvPreview([]);
+      setCsvUploadError(null);
+      // Clear form csvFile field
+      form.setValue("csvFile", undefined);
+      return;
+    }
+
+    setSelectedFile(file);
+    setCsvUploading(true);
+    setCsvUploadError(null);
+
+    try {
+      // Parse CSV for preview only
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          const parsedData = results.data.map((row: any) => ({
+            description: row.description || "",
+            input: row.query || row.input || "",
+            expected: row.expectedAnswer || row.expected || "",
+          }));
+          setCsvPreview(parsedData);
+
+          // Set file to form data for later submission
+          form.setValue("csvFile", file);
+        },
+        error: (error) => {
+          setCsvUploadError(`CSV parsing error: ${error.message}`);
+          setCsvPreview([]);
+          setSelectedFile(null);
+          form.setValue("csvFile", undefined);
+        },
+      });
+    } catch (error) {
+      setCsvUploadError(
+        error instanceof Error ? error.message : "Failed to parse CSV"
+      );
+      setCsvPreview([]);
+      setSelectedFile(null);
+      form.setValue("csvFile", undefined);
+    } finally {
+      setCsvUploading(false);
+    }
+  };
+
+  // Sync CSV data to form when switching to CSV mode
   const syncCsvToForm = () => {
     if (inputMode === "csv" && csvPreview.length > 0) {
       form.setValue("testCases", csvPreview);
     }
   };
 
-  // Hàm kiểm tra hợp lệ cho step này
+  // Validation function for this step
   const isTestStepValid = () => {
-    const hasManual =
-      testFields.length > 0 && testFields.some((f) => f.input || f.query);
-    const hasCsv = csvPreview.length > 0;
-    return hasManual || hasCsv;
+    if (inputMode === "manual") {
+      // For manual mode, check if at least one test case has input
+      const hasValidTestCase = testFields.some((field, index) => {
+        const inputValue = watch(`testCases.${index}.input`);
+        return inputValue && inputValue.trim().length > 0;
+      });
+      return hasValidTestCase;
+    } else {
+      // For CSV mode, check if CSV is selected and parsed successfully
+      return csvPreview.length > 0 && selectedFile !== null;
+    }
   };
+
+  // Get selected file for EvaluationForm
+  const getSelectedFile = () => selectedFile;
+
+  // Export functions to form methods for EvaluationForm to access
   (form as any).isTestStepValid = isTestStepValid;
-
-  // Export hàm syncCsvToForm để EvaluationForm gọi được
   (form as any).syncCsvToForm = syncCsvToForm;
+  (form as any).getSelectedFile = getSelectedFile;
 
-  // Hàm lấy testDataFile cho EvaluationForm
-  const getTestDataFile = () => uploadedCsvPath;
-  (form as any).getTestDataFile = getTestDataFile;
+  // Handle input mode change
+  const handleInputModeChange = (mode: "manual" | "csv") => {
+    setInputMode(mode);
+
+    // Clear validation errors when switching modes
+    form.clearErrors("testCases");
+    form.clearErrors("csvFile");
+
+    if (mode === "csv") {
+      // When switching to CSV mode, sync existing CSV data
+      syncCsvToForm();
+    } else {
+      // When switching to manual mode, clear CSV data
+      setCsvPreview([]);
+      setSelectedFile(null);
+      setCsvUploadError(null);
+      form.setValue("csvFile", undefined);
+    }
+  };
 
   return (
     <Card
       title="Test Cases"
       description="Define test inputs and expected outputs"
     >
-      {/* Chọn mode nhập */}
+      {/* Input mode selection */}
       <div className="mb-4 flex gap-6">
         <label className="flex items-center gap-2">
           <input
@@ -79,7 +158,7 @@ const TestsStep: React.FC<TestsStepProps> = ({
             name="inputMode"
             value="manual"
             checked={inputMode === "manual"}
-            onChange={() => setInputMode("manual")}
+            onChange={() => handleInputModeChange("manual")}
           />
           Nhập tay
         </label>
@@ -89,13 +168,13 @@ const TestsStep: React.FC<TestsStepProps> = ({
             name="inputMode"
             value="csv"
             checked={inputMode === "csv"}
-            onChange={() => setInputMode("csv")}
+            onChange={() => handleInputModeChange("csv")}
           />
           Import từ CSV
         </label>
       </div>
 
-      {/* Nếu chọn nhập tay, giữ nguyên UI cũ */}
+      {/* Manual input mode */}
       {inputMode === "manual" && (
         <div className="space-y-4">
           {testFields.map((field, index) => (
@@ -125,7 +204,8 @@ const TestsStep: React.FC<TestsStepProps> = ({
                 />
                 <textarea
                   {...register(`testCases.${index}.input`, {
-                    required: "Input is required",
+                    required:
+                      inputMode === "manual" ? "Input is required" : false,
                   })}
                   placeholder="Test input..."
                   rows={3}
@@ -157,14 +237,14 @@ const TestsStep: React.FC<TestsStepProps> = ({
         </div>
       )}
 
-      {/* Nếu chọn import CSV, hiển thị UI upload và preview (chưa xử lý logic) */}
+      {/* CSV import mode */}
       {inputMode === "csv" && (
         <div className="space-y-4">
           <div className="flex gap-4 items-center">
             <input
-              {...register("csvFile")}
               type="file"
               accept=".csv"
+              onChange={handleCsvFileChange}
               className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
             <button
@@ -174,43 +254,74 @@ const TestsStep: React.FC<TestsStepProps> = ({
             >
               Download CSV Template
             </button>
-            {csvUploading && (
-              <span className="text-blue-600 ml-2">Đang upload...</span>
-            )}
-            {csvUploadError && (
-              <span className="text-red-600 ml-2">{csvUploadError}</span>
-            )}
-            {uploadedCsvPath && !csvUploading && (
-              <span className="text-green-600 ml-2">Đã upload!</span>
-            )}
           </div>
-          {/* Preview test cases từ CSV (sẽ xử lý sau) */}
+
+          {/* Status indicators */}
+          {csvUploading && (
+            <div className="text-blue-600">Đang parse CSV...</div>
+          )}
+          {csvUploadError && (
+            <div className="text-red-600">{csvUploadError}</div>
+          )}
+          {selectedFile && !csvUploading && !csvUploadError && (
+            <div className="text-green-600">
+              ✓ CSV đã chọn: {selectedFile.name}
+            </div>
+          )}
+
+          {/* CSV Preview */}
           {csvPreview.length > 0 && (
             <div className="mt-4">
               <div className="font-semibold mb-2">
-                Preview test cases từ CSV:
+                Preview test cases từ CSV ({csvPreview.length} test cases):
               </div>
-              <table className="min-w-full border text-sm">
-                <thead>
-                  <tr>
-                    <th className="border px-2 py-1">Description</th>
-                    <th className="border px-2 py-1">Input</th>
-                    <th className="border px-2 py-1">Expected</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {csvPreview.map((row, idx) => (
-                    <tr key={idx}>
-                      <td className="border px-2 py-1">{row.description}</td>
-                      <td className="border px-2 py-1">{row.input}</td>
-                      <td className="border px-2 py-1">{row.expected}</td>
+              <div className="overflow-x-auto">
+                <table className="min-w-full border text-sm">
+                  <thead>
+                    <tr className="bg-gray-50">
+                      <th className="border px-2 py-1 text-left">Query</th>
+                      <th className="border px-2 py-1 text-left">ExpectedAnswer</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {csvPreview.slice(0, 5).map((row, idx) => (
+                      <tr key={idx}>
+                        <td className="border px-2 py-1 max-w-xs truncate">
+                          {row.input}
+                        </td>
+                        <td className="border px-2 py-1 max-w-xs truncate">
+                          {row.expected || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                    {csvPreview.length > 5 && (
+                      <tr>
+                        <td
+                          className="border px-2 py-1 text-center text-gray-500"
+                          colSpan={3}
+                        >
+                          ... và {csvPreview.length - 5} test cases khác
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
+      )}
+
+      {/* Validation message */}
+      {inputMode === "manual" && testFields.length === 0 && (
+        <p className="text-red-600 text-sm mt-2">
+          Vui lòng thêm ít nhất một test case hoặc chuyển sang import CSV
+        </p>
+      )}
+      {inputMode === "csv" && csvPreview.length === 0 && (
+        <p className="text-red-600 text-sm mt-2">
+          Vui lòng chọn file CSV hợp lệ hoặc chuyển sang nhập tay
+        </p>
       )}
     </Card>
   );

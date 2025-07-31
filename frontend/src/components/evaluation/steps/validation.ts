@@ -15,7 +15,7 @@ export const evaluationFormSchema = z.object({
   testCases: z
     .array(
       z.object({
-        input: z.string().min(1, "Input is required"),
+        input: z.string().optional(), // Made optional since validation is handled in component
         expected: z.string().optional(),
         description: z.string().optional(),
       }),
@@ -36,7 +36,7 @@ export const evaluationFormSchema = z.object({
       .max(20, "Concurrency cannot exceed 20"),
     outputPath: z.string().min(1, "Output path is required"),
   }),
-  csvFile: z.any().optional(), // For file upload
+  csvFile: z.union([z.instanceof(File), z.undefined()]).optional(), // For file upload
 });
 
 // Individual step schemas for granular validation
@@ -51,34 +51,19 @@ export const promptsStepSchema = z.object({
     .min(1, "At least one prompt is required"),
 });
 
-export const testsStepSchema = z
-  .object({
-    testCases: z
-      .array(
-        z.object({
-          input: z.string().min(1, "Input is required"),
-          expected: z.string().optional(),
-          description: z.string().optional(),
-        }),
-      )
-      .optional(),
-    csvFile: z.any().optional(),
-  })
-  .refine(
-    (data) => {
-      // At least one test case OR a CSV file must be provided
-      const hasTestCases =
-        data.testCases &&
-        data.testCases.length > 0 &&
-        data.testCases.some((tc) => tc.input && tc.input.trim().length > 0);
-      const hasCsvFile = data.csvFile && data.csvFile.length > 0;
-      return hasTestCases || hasCsvFile;
-    },
-    {
-      message: "Please provide test cases either manually or upload a CSV file",
-      path: ["testCases"],
-    },
-  );
+// Simplified tests step schema - validation is handled in component logic
+export const testsStepSchema = z.object({
+  testCases: z
+    .array(
+      z.object({
+        input: z.string().optional(),
+        expected: z.string().optional(),
+        description: z.string().optional(),
+      }),
+    )
+    .optional(),
+  csvFile: z.union([z.instanceof(File), z.undefined()]).optional(),
+});
 
 export const configStepSchema = z.object({
   providers: z.array(z.string()).min(1, "Select at least one provider"),

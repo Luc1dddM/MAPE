@@ -32,7 +32,7 @@ class PromptfooEvaluationService {
       const config = this.generatePromptfooConfig(request);
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`,
+        `eval-${evaluationId}.yaml`
       );
 
       // Write config file
@@ -109,8 +109,8 @@ class PromptfooEvaluationService {
     let tests = [];
     console.log("request.testDataFile", request.testDataFile);
     // If there's a CSV file reference, add it
-    if (request.file) {
-      tests.push(`file:${request.file}`);
+    if (request.testDataFile) {
+      tests.push(`file:${request.testDataFile}`);
     }
 
     // Add inline test cases
@@ -220,7 +220,7 @@ class PromptfooEvaluationService {
       return await this.extractEvaluationResults(evaluationData);
     } catch (error) {
       throw new Error(
-        `Failed to read evaluation results file: ${error.message}`,
+        `Failed to read evaluation results file: ${error.message}`
       );
     }
   }
@@ -273,7 +273,7 @@ class PromptfooEvaluationService {
     // Calculate average score from component results
     const totalScore = extractedResults.reduce(
       (sum, result) => sum + (result.score || 0),
-      0,
+      0
     );
     const averageScore = totalTests > 0 ? totalScore / totalTests : 0;
 
@@ -309,7 +309,7 @@ class PromptfooEvaluationService {
           await this.errorClusteringService.clusterFailedTests(baseResults);
         baseResults.errorClusters = clusteringResults;
         logger.info(
-          `Error clustering completed. Found ${clusteringResults.clusters.length} clusters.`,
+          `Error clustering completed. Found ${clusteringResults.clusters.length} clusters.`
         );
       } catch (error) {
         logger.error("Error clustering failed:", error);
@@ -344,7 +344,7 @@ class PromptfooEvaluationService {
     return new Promise((resolve, reject) => {
       const outputPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`,
+        `results-${evaluationId}.json`
       );
       const args = ["promptfoo", "eval", "-c", configPath, "-o", outputPath];
 
@@ -396,8 +396,8 @@ class PromptfooEvaluationService {
           if (code !== 0 && code !== 100) {
             reject(
               new Error(
-                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`,
-              ),
+                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`
+              )
             );
             return;
           }
@@ -407,8 +407,9 @@ class PromptfooEvaluationService {
             logger.warn("Evaluation completed with test failures");
           }
 
-          const extractedData =
-            await this.extractEvaluationResultsFromFile(outputPath);
+          const extractedData = await this.extractEvaluationResultsFromFile(
+            outputPath
+          );
           console.log(JSON.stringify(extractedData, null, 2));
 
           // QUAN TRỌNG: Phải resolve() thay vì return
@@ -424,7 +425,7 @@ class PromptfooEvaluationService {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`,
+        `results-${evaluationId}.json`
       );
       const resultsExist = await fs.pathExists(resultsPath);
 
@@ -477,11 +478,11 @@ class PromptfooEvaluationService {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`,
+        `results-${evaluationId}.json`
       );
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`,
+        `eval-${evaluationId}.yaml`
       );
 
       // Delete results file

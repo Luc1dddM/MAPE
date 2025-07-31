@@ -10,15 +10,16 @@ class EvaluationController {
   async createEvaluation(req, res) {
     try {
       const evaluationRequest = req.body;
+      evaluationRequest.testDataFile = req.file;
       console.log(
         "Received evaluation request:",
-        JSON.stringify(evaluationRequest, null, 2),
+        JSON.stringify(evaluationRequest, null, 2)
       );
 
       // Debug: Log the full request body
       logger.info(
         "Full request body received:",
-        JSON.stringify(req.body, null, 2),
+        JSON.stringify(req.body, null, 2)
       );
 
       logger.info("Creating new evaluation:", {
@@ -29,8 +30,9 @@ class EvaluationController {
         hasCriteria: !!evaluationRequest.evaluationCriteria,
       });
 
-      const result =
-        await this.evaluationService.evaluatePrompts(evaluationRequest);
+      const result = await this.evaluationService.evaluatePrompts(
+        evaluationRequest
+      );
 
       console.log("Evaluation result:", JSON.stringify(result, null, 2));
 
@@ -66,8 +68,9 @@ class EvaluationController {
 
       logger.info(`Getting evaluation results for ID: ${evaluationId}`);
 
-      const results =
-        await this.evaluationService.getEvaluationResults(evaluationId);
+      const results = await this.evaluationService.getEvaluationResults(
+        evaluationId
+      );
       // const formattedResults = this.evaluationService.formatResultsForUI(results);
 
       res.status(200).json({
@@ -250,8 +253,9 @@ class EvaluationController {
       logger.info(`Downloading evaluation ${evaluationId} in ${format} format`);
 
       // Get the evaluation results
-      const results =
-        await this.evaluationService.getEvaluationResults(evaluationId);
+      const results = await this.evaluationService.getEvaluationResults(
+        evaluationId
+      );
 
       if (!results) {
         return res.status(404).json({
@@ -281,7 +285,7 @@ class EvaluationController {
 
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="${filename}"`,
+        `attachment; filename="${filename}"`
       );
       res.setHeader("Content-Type", contentType);
       res.send(content);
@@ -322,7 +326,7 @@ class EvaluationController {
         result.id || "",
         `"${(result.prompt?.raw || result.prompt?.label || "").replace(
           /"/g,
-          '""',
+          '""'
         )}"`,
         `"${(result.response?.output || "").replace(/"/g, '""')}"`,
         result.gradingResult?.score || 0,

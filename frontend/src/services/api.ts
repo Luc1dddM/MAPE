@@ -143,8 +143,8 @@ export const evaluationService = {
       ...data,
       evaluationCriteria: Array.isArray(data.evaluationCriteria)
         ? data.evaluationCriteria.map((c: any) =>
-            typeof c === "string" ? c : c.name,
-          )
+          typeof c === "string" ? c : c.name,
+        )
         : [],
     };
     const response = await apiClient.post<EvaluationResponse>(
@@ -157,7 +157,7 @@ export const evaluationService = {
   // Run a new evaluation with CSV file upload
   async runEvaluationWithFile(formData: FormData): Promise<EvaluationResponse> {
     const response = await apiClient.post<EvaluationResponse>(
-      "/api/evaluations/run-with-file",
+      "/api/evaluations/run",
       formData,
       {
         headers: {

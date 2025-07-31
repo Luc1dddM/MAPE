@@ -3,6 +3,7 @@ const EvaluationController = require("../controllers/EvaluationController");
 const { validatePromptfooEvaluation } = require("../middleware/validation");
 const multer = require("multer");
 const upload = multer({ dest: "uploads/" });
+const parseJsonDataField = require("../middleware/parseJsonDataField");
 
 const router = express.Router();
 const evaluationController = new EvaluationController();
@@ -10,11 +11,12 @@ const evaluationController = new EvaluationController();
 // Create and run a new evaluation
 router.post(
   "/run",
-  validatePromptfooEvaluation,
   upload.single("testDataFile"),
+  parseJsonDataField,
+  validatePromptfooEvaluation,
   (req, res) => {
     evaluationController.createEvaluation(req, res);
-  },
+  }
 );
 
 // Get evaluation results by ID

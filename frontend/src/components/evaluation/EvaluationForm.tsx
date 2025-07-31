@@ -62,6 +62,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
   // Initialize form with Zod resolver
   const formMethods = useForm<EvaluationFormData>({
     resolver: zodResolver(evaluationFormSchema),
+    mode: "onChange", // Enable real-time validation
     defaultValues: {
       name: "",
       description: "",
@@ -109,7 +110,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
     if (providersData?.data.providers) {
       setValue(
         "providers",
-        providersData.data.providers.map((provider: any) => provider.id),
+        providersData.data.providers.map((provider: any) => provider.id)
       );
     }
   }, [providersData, setValue]);
@@ -118,7 +119,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
     if (criteriaData?.data.criteria) {
       setValue(
         "evaluationCriteria",
-        criteriaData.data.criteria.map((criteria: any) => criteria.name),
+        criteriaData.data.criteria.map((criteria: any) => criteria.name)
       );
     }
   }, [criteriaData, setValue]);
@@ -128,67 +129,79 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
     console.log("SubmitData:", data);
     setIsSubmitting(true);
     try {
-      // Get CSV file from form data
-      const csvFile =
-        data.csvFile && data.csvFile.length > 0 ? data.csvFile[0] : null;
+      // Get CSV file from form data or TestsStep component
+      let fileToUpload: File | null = null;
 
-      // Get additional CSV file from TestsStep component if available
-      let selectedFile: File | null = null;
-      if (typeof (formMethods as any).getSelectedFile === "function") {
-        selectedFile = (formMethods as any).getSelectedFile();
+      // Check if csvFile is set in form data (from react-hook-form)
+      if (data.csvFile && data.csvFile instanceof File) {
+        fileToUpload = data.csvFile;
+      }
+      // Fallback to getSelectedFile method
+      else if (typeof (formMethods as any).getSelectedFile === "function") {
+        fileToUpload = (formMethods as any).getSelectedFile();
       }
 
-      // Use the CSV file from either source
-      const fileToUpload = csvFile || selectedFile;
+      console.log("File to upload:", fileToUpload);
 
       // Ensure providers is always an array of strings (provider IDs)
       const selectedProviders: string[] = Array.isArray(data.providers)
         ? data.providers.filter(
-            (p: any) => typeof p === "string" && p.length > 0,
+            (p: any) => typeof p === "string" && p.length > 0
           )
         : [];
 
-      // Normalize criteria
-      const selectedCriteriaNames = data.evaluationCriteria || [];
-      const selectedCriteria: EvaluationCriteria[] =
-        criteriaData?.data.criteria
-          .filter((c: any) => selectedCriteriaNames.includes(c.name))
-          .map((c: any) => ({
-            name: c.name,
-            description: c.description,
-            enabled: true,
-          })) ?? [];
+      // Normalize criteria to array of strings (just the names)
+      const selectedCriteriaNames: string[] = data.evaluationCriteria || [];
 
-      // Prepare test cases - either from manual input or indicate CSV file will be used
-      const testCases: TestCase[] =
-        data.testCases?.map((tc) => ({
-          description: tc.description || "",
-          input: tc.input,
-          expectedOutput: tc.expected,
-        })) || [];
+      // Prepare test cases - either from manual input or empty array if using CSV
+      const testCases: any[] = [];
+      if (!fileToUpload && data.testCases) {
+        data.testCases.forEach((tc) => {
+          if (tc.input && tc.input.trim()) {
+            testCases.push({
+              description: tc.description || "",
+              input: tc.input,
+              expected: tc.expected || "",
+            });
+          }
+        });
+      }
 
-      // Create the evaluation request
-      const request: PromptfooEvaluationRequest = {
-        description: data.description,
+      // Prepare the request payload
+      const requestPayload: any = {
+        description: data.description || "",
         prompts: data.prompts.map((p) => p.content),
-        testCases: testCases.length > 0 ? testCases : undefined,
-        providers: selectedProviders,
-        evaluationCriteria: selectedCriteria,
+        ...(testCases.length > 0 && { testCases }),
+        ...(selectedProviders.length > 0 && { providers: selectedProviders }),
+        ...(selectedCriteriaNames.length > 0 && {
+          evaluationCriteria: selectedCriteriaNames,
+        }),
       };
 
-      // If there's a CSV file, create FormData to send both the request and file
-      let response;
-      if (fileToUpload) {
-        const formData = new FormData();
-        formData.append("evaluationData", JSON.stringify(request));
-        formData.append("csvFile", fileToUpload);
+      console.log("Request payload:", requestPayload);
 
-        // Call a specific endpoint that handles file uploads
-        response = await evaluationService.runEvaluationWithFile(formData);
+      // Create FormData
+      const formData = new FormData();
+
+      // Add all data as JSON string
+      formData.append("data", JSON.stringify(requestPayload));
+
+      // Add CSV file if exists
+      if (fileToUpload) {
+        formData.append("testDataFile", fileToUpload);
+        console.log("Sending with file:", fileToUpload.name);
       } else {
-        // Use the regular evaluation endpoint
-        response = await evaluationService.runEvaluation(request);
+        console.log("Sending without file");
       }
+
+      // // Debug: Log all FormData entries
+      // console.log("FormData entries:");
+      // for (let [key, value] of formData.entries()) {
+      //   console.log(key, ":", typeof value === "string" ? value : "File");
+      // }
+
+      // Always use the file upload endpoint now
+      const response = await evaluationService.runEvaluationWithFile(formData);
 
       if (response.success && response.data) {
         toast.success("Evaluation started successfully!");
@@ -215,38 +228,52 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
     let fieldsToValidate: (keyof EvaluationFormData)[] = [];
 
     if (currentStep === 0) {
+      // Validate prompts step
       fieldsToValidate = ["prompts"];
+      const isValid = await trigger(fieldsToValidate);
+      if (!isValid) {
+        toast.error("Please fill in all required prompt fields correctly.");
+        return false;
+      }
     } else if (currentStep === 1) {
-      // For test cases step, check if we have either manual test cases or CSV file
-      // const hasTestCases = watch("testCases")?.some((tc) => tc.input?.trim());
-      // const hasCSVFile = watch("csvFile")?.length > 0;
-      // let hasSelectedFile = false;
+      // Validate test cases step using custom logic from TestsStep
+      if (typeof (formMethods as any).isTestStepValid === "function") {
+        const isValid = (formMethods as any).isTestStepValid();
+        if (!isValid) {
+          toast.error(
+            "Please provide test cases either manually or upload a CSV file."
+          );
+          return false;
+        }
 
-      // if (typeof (formMethods as any).getSelectedFile === "function") {
-      //   hasSelectedFile = !!(formMethods as any).getSelectedFile();
-      // }
+        // Sync CSV data to form if using CSV mode
+        if (typeof (formMethods as any).syncCsvToForm === "function") {
+          (formMethods as any).syncCsvToForm();
+        }
+      } else {
+        // Fallback validation
+        const hasTestCases = watch("testCases")?.some((tc) => tc.input?.trim());
+        const hasCSVFile = watch("csvFile");
 
-      // if (!hasTestCases && !hasCSVFile && !hasSelectedFile) {
-      //   toast.error(
-      //     "Please provide test cases either manually or upload a CSV file.",
-      //   );
-      //   return false;
-      // }
-      return true;
+        if (!hasTestCases && !hasCSVFile) {
+          toast.error(
+            "Please provide test cases either manually or upload a CSV file."
+          );
+          return false;
+        }
+      }
     } else if (currentStep === 2) {
+      // Validate configuration step
       fieldsToValidate = [
         "providers",
         "evaluationCriteria",
         "additionalConfig",
       ];
-    }
-
-    // Validate the specified fields
-    const isValid = await trigger(fieldsToValidate);
-
-    if (!isValid) {
-      toast.error("Please fill in all required fields correctly.");
-      return false;
+      const isValid = await trigger(fieldsToValidate);
+      if (!isValid) {
+        toast.error("Please complete all configuration fields correctly.");
+        return false;
+      }
     }
 
     return true;
