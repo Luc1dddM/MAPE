@@ -1,12 +1,12 @@
-const express = require('express');
-const EvaluationController = require('../controllers/EvaluationController');
-const { validatePromptfooEvaluation } = require('../middleware/validation');
+import express, { Request, Response } from 'express';
+import EvaluationController from '../controllers/EvaluationController.js';
+import { validatePromptfooEvaluation } from '../middleware/validation.js';
 
 const router = express.Router();
 const evaluationController = new EvaluationController();
 
 // Create and run a new evaluation
-router.post('/run', validatePromptfooEvaluation, (req, res) => {
+router.post('/run', validatePromptfooEvaluation, (req: Request, res: Response) => {
   evaluationController.createEvaluation(req, res);
 });
 
@@ -45,4 +45,4 @@ router.get('/meta/providers', (req, res) => {
   evaluationController.getProviders(req, res);
 });
 
-module.exports = router;
+export default router;

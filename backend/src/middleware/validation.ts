@@ -1,4 +1,5 @@
-const { body, validationResult } = require("express-validator");
+import { body, validationResult } from "express-validator";
+import { Request, Response, NextFunction } from 'express';
 
 const validatePromptGeneration = [
   body("query")
@@ -22,7 +23,7 @@ const validatePromptGeneration = [
     .optional()
     .isArray()
     .withMessage("Techniques must be an array")
-    .custom((techniques) => {
+    .custom((techniques: string[]) => {
       const validTechniques = [
         "few-shot",
         "chain-of-thought",
@@ -46,13 +47,14 @@ const validatePromptGeneration = [
     .isObject()
     .withMessage("Parameters must be an object"),
 
-  (req, res, next) => {
+  (req: Request, res: Response, next: NextFunction): void => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         errors: errors.array(),
       });
+      return;
     }
     next();
   },
@@ -69,13 +71,14 @@ const validatePromptEvaluation = [
 
   body("actualOutput").notEmpty().withMessage("Actual output is required"),
 
-  (req, res, next) => {
+  (req: Request, res: Response, next: NextFunction): void => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         errors: errors.array(),
       });
+      return;
     }
     next();
   },
@@ -139,7 +142,7 @@ const validatePromptfooEvaluation = [
     .isString()
     .withMessage("Test data file must be a string"),
 
-  (req, res, next) => {
+  (req: Request, res: Response, next: NextFunction): void => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       console.log(
@@ -147,19 +150,59 @@ const validatePromptfooEvaluation = [
         JSON.stringify(errors.array(), null, 2)
       );
       console.log("Request body:", JSON.stringify(req.body, null, 2));
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         errors: errors.array(),
         message: "Validation failed",
         receivedData: req.body,
       });
+      return;
     }
     next();
   },
 ];
 
-module.exports = {
+const validateOptimizeRequest = [
+  body("originalPrompt")
+    .notEmpty()
+    .withMessage("Original prompt is required")
+    .isLength({ min: 10, max: 10000 })
+    .withMessage("Original prompt must be between 10 and 10000 characters"),
+
+  body("failedClusters")
+    .isArray({ min: 1 })
+    .withMessage("At least one failed cluster is required"),
+
+  body("failedClusters.*.reason")
+    .notEmpty()
+    .withMessage("Each cluster must have a reason"),
+
+  body("failedClusters.*.failedTestCases")
+    .isArray({ min: 1 })
+    .withMessage("Each cluster must have at least one failed test case"),
+
+  body("promptId")
+    .optional()
+    .isString()
+    .withMessage("Prompt ID must be a string"),
+
+  (req: Request, res: Response, next: NextFunction): void => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      res.status(400).json({
+        success: false,
+        errors: errors.array(),
+        message: "Validation failed for optimization request",
+      });
+      return;
+    }
+    next();
+  },
+];
+
+export {
   validatePromptGeneration,
   validatePromptEvaluation,
   validatePromptfooEvaluation,
+  validateOptimizeRequest
 };
