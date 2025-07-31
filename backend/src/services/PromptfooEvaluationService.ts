@@ -39,18 +39,132 @@ class PromptfooEvaluationService {
     try {
       await fs.ensureDir(this.evaluationsDir);
       await fs.ensureDir(this.resultsDir);
+      // Ensure temp directory for CSV files
+      await fs.ensureDir(path.join(__dirname, "../../temp"));
     } catch (error) {
       logger.error("Error creating evaluation directories:", error);
     }
   }
 
+  /**
+   * Save uploaded CSV file to temporary location for promptfoo
+   */
+  async saveTempCsvFile(csvContent: string | Buffer, evaluationId: string): Promise<string> {
+    try {
+      const tempDir = path.join(__dirname, "../../temp");
+      await fs.ensureDir(tempDir); // Ensure temp directory exists
+      
+      const tempCsvPath = path.join(tempDir, `testdata-${evaluationId}.csv`);
+      
+      await fs.writeFile(tempCsvPath, csvContent);
+      logger.info(`Temporary CSV file saved: ${tempCsvPath}`);
+      
+      return tempCsvPath;
+    } catch (error) {
+      logger.error("Error saving temporary CSV file:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cleanup temporary files after evaluation
+   */
+  async cleanupTempFile(filePath: string): Promise<void> {
+    try {
+      if (await fs.pathExists(filePath)) {
+        await fs.remove(filePath);
+        logger.info(`Temporary file cleaned up: ${filePath}`);
+      }
+    } catch (error) {
+      logger.warn(`Failed to cleanup temporary file ${filePath}:`, error);
+      // Don't throw error for cleanup failure
+    }
+  }
+
+  /**
+   * Validate CSV format and structure
+   */
+  async validateCsvFile(csvPath: string): Promise<boolean> {
+    try {
+      const content = await fs.readFile(csvPath, 'utf-8');
+      const lines = content.trim().split('\n').filter(line => line.trim());
+      
+      // Check if file has at least header and one data row
+      if (lines.length < 2) {
+        throw new Error('CSV file must have at least a header row and one data row');
+      }
+      
+      // Basic validation - ensure consistent column count
+      const headerCols = lines[0]?.split(',').length || 0;
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i]?.split(',').length || 0;
+        if (cols !== headerCols) {
+          logger.warn(`Row ${i + 1} has ${cols} columns, expected ${headerCols}`);
+        }
+      }
+      
+      logger.info(`CSV validation passed: ${lines.length - 1} test cases found`);
+      return true;
+    } catch (error) {
+      logger.error('CSV validation failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get temporary directory path for this service
+   */
+  private getTempDir(): string {
+    return path.join(__dirname, "../../temp");
+  }
+
+  /**
+   * Clean up all temporary files older than specified hours (default: 24h)
+   */
+  async cleanupOldTempFiles(hoursOld: number = 24): Promise<void> {
+    try {
+      const tempDir = this.getTempDir();
+      if (!await fs.pathExists(tempDir)) {
+        return;
+      }
+
+      const files = await fs.readdir(tempDir);
+      const cutoffTime = Date.now() - (hoursOld * 60 * 60 * 1000);
+
+      for (const file of files) {
+        if (file.startsWith('testdata-') && file.endsWith('.csv')) {
+          const filePath = path.join(tempDir, file);
+          const stats = await fs.stat(filePath);
+          
+          if (stats.mtime.getTime() < cutoffTime) {
+            await fs.remove(filePath);
+            logger.info(`Cleaned up old temp file: ${filePath}`);
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Error cleaning up old temp files:', error);
+    }
+  }
+
   async evaluatePrompts(request: EvaluationRequest): Promise<any> {
+    let tempCsvPath: string | null = null;
+    
     try {
       const evaluationId = uuidv4();
       logger.info(`Starting evaluation with ID: ${evaluationId}`);
 
-      // Generate promptfoo config
-      const config = this.generatePromptfooConfig(request);
+      // Handle CSV file if provided
+      if (request.testDataFile) {
+        tempCsvPath = await this.saveTempCsvFile(request.testDataFile, evaluationId);
+        logger.info(`Temporary CSV file saved to: ${tempCsvPath}`);
+        
+        // Validate CSV format
+        await this.validateCsvFile(tempCsvPath);
+      }
+
+      // Generate promptfoo config with CSV path
+      const config = this.generatePromptfooConfig(request, tempCsvPath);
       const configPath = path.join(
         this.evaluationsDir,
         `eval-${evaluationId}.yaml`,
@@ -74,16 +188,20 @@ class PromptfooEvaluationService {
     } catch (error) {
       logger.error("Error in evaluatePrompts:", error);
       throw error;
+    } finally {
+      // Always cleanup temporary CSV file
+      if (tempCsvPath) {
+        await this.cleanupTempFile(tempCsvPath);
+      }
     }
   }
 
-  generatePromptfooConfig(request: EvaluationRequest): string {
+    generatePromptfooConfig(request: EvaluationRequest, tempCsvPath?: string | null) {
     // Format providers to match the example structure
     const providers = request.providers?.map((provider) => ({
       id: provider.id || "google:gemini-2.5-flash",
       config: {
-        apiKey:
-          provider.config?.apiKey || process.env?.["GEMINI_API_KEY"] || "",
+        apiKey: provider.config?.apiKey || process.env["GEMINI_API_KEY"] || "",
       },
     })) || [
       {
@@ -101,7 +219,7 @@ class PromptfooEvaluationService {
       if (typeof p === "string") {
         return p;
       }
-      return (p as PromptConfig).content || p;
+      return p.content || p;
     });
 
     // Create defaultTest configuration for LLM-based evaluation
@@ -121,6 +239,8 @@ class PromptfooEvaluationService {
         };
       });
 
+      console.log("Default assertions:", defaultAssertions);
+
       defaultTest.assert = defaultAssertions;
       defaultTest.options = {
         provider: providers[0]?.id, // Use the first provider for default test
@@ -128,15 +248,17 @@ class PromptfooEvaluationService {
     }
 
     // Handle tests - support both inline test cases and CSV file references
-    let tests: any[] = [];
-
-    // If there's a CSV file reference, add it
-    if (request.testDataFile) {
-      tests.push(`file://${request.testDataFile}`);
-    }
-
-    // Add inline test cases
-    if (request.testCases && request.testCases.length > 0) {
+    let tests = [];
+    console.log("request.testDataFile", request.testDataFile);
+    console.log("tempCsvPath", tempCsvPath);
+    
+    // Priority 1: If there's a CSV file reference, add it (and skip inline tests)
+    if (tempCsvPath) {
+      tests.push(`file:${tempCsvPath}`);
+      logger.info(`Using CSV file for tests: ${tempCsvPath}`);
+    } 
+    // Priority 2: Add inline test cases only if no CSV file
+    else if (request.testCases && request.testCases.length > 0) {
       const inlineTests = request.testCases.map((testCase) => {
         const testConfig: any = {};
 
@@ -147,39 +269,25 @@ class PromptfooEvaluationService {
             testConfig.vars = {
               query: testCase.input,
               expectedAnswer:
-                testCase.expectedOutput || "A relevant and accurate response",
+                testCase.expected || "A relevant and accurate response",
             };
           } else {
             // If input is an object, use it directly but ensure expectedAnswer is set
             testConfig.vars = {
               ...testCase.vars,
               expectedAnswer:
-                testCase.expectedOutput || "A relevant and accurate response",
+                testCase.expected || "A relevant and accurate response",
             };
           }
-        }
-
-        // Add assertions
-        const assertions: any[] = [];
-
-        // Add expected output assertion if provided
-        if (testCase.expectedOutput) {
-          assertions.push({
-            type: "contains",
-            value: testCase.expectedOutput,
-          });
-        }
-
-        if (assertions.length > 0) {
-          testConfig.assert = assertions;
         }
 
         return testConfig;
       });
 
       tests.push(...inlineTests);
+      logger.info(`Using ${inlineTests.length} inline test cases`);
     }
-
+    console.log("tests", tests);
     // If no test cases provided but we have prompts, create a simple test case
     if (tests.length === 0 && prompts.length > 0) {
       tests.push({
@@ -199,14 +307,12 @@ class PromptfooEvaluationService {
       prompts: prompts,
       tests: tests,
     };
+    
 
-    // Add defaultTest only if it has content
+     // Add defaultTest only if it has content
     if (Object.keys(defaultTest).length > 0) {
       config.defaultTest = defaultTest;
     }
-
-    // Add output path
-    config.outputPath = path.join(this.resultsDir, "latest.json");
 
     return yaml.stringify(config);
   }

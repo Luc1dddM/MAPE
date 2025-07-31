@@ -3,7 +3,7 @@ export interface TestCase {
   input?: string;
   vars?: Record<string, any>;
   assert?: AssertionConfig[];
-  expectedOutput?: string;
+  expected?: string;
   metadata?: Record<string, any>;
 }
 

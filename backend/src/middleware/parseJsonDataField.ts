@@ -13,11 +13,12 @@ function parseJsonDataField(req: Request, res: Response, next: NextFunction): vo
       Object.assign(req.body, json);
       delete req.body.data;
     } catch (e) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "Invalid JSON in 'data' field",
         error: (e as Error).message,
       } as ErrorResponse);
+      return;
     }
   }
   next();
