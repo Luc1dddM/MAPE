@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
-import { Card, Badge, CopyButton } from '@/components/ui';
-import { Button } from '@/components/ui/Button';
-import { evaluationService } from '@/services/api';
-import ErrorClusteringView from './ErrorClusteringView';
+import React, { useState } from "react";
+import { Card, Badge, CopyButton } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
+import { evaluationService } from "@/services/api";
+import ErrorClusteringView from "./ErrorClusteringView";
 import {
   EvaluationResult,
   EvaluationSummary,
   EvaluationMetadata,
-  ErrorClusteringResults
-} from '@/types/api';
-import toast from 'react-hot-toast';
-import { cn } from '@/utils';
+  ErrorClusteringResults,
+} from "@/types/api";
+import toast from "react-hot-toast";
+import { cn } from "@/utils";
 
 interface EvaluationResultsProps {
   summary: EvaluationSummary;
@@ -25,20 +25,20 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
   results,
   metadata,
   evaluationId,
-  errorClusters
+  errorClusters,
 }) => {
-  const [activeTab, setActiveTab] = useState<'results' | 'clusters'>('results');
+  const [activeTab, setActiveTab] = useState<"results" | "clusters">("results");
 
   const handleDownload = async () => {
     try {
       await evaluationService.downloadEvaluation(evaluationId);
-      toast.success('Results downloaded successfully!');
+      toast.success("Results downloaded successfully!");
     } catch (error: any) {
       toast.error(`Failed to download results: ${error.message}`);
     }
   };
 
-  console.log('Evaluation Results:', results)
+  console.log("Evaluation Results:", results);
 
   return (
     <div className="space-y-6">
@@ -46,15 +46,21 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
       <Card title="Evaluation Summary">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600">{summary.totalTests}</div>
+            <div className="text-2xl font-bold text-blue-600">
+              {summary.totalTests}
+            </div>
             <div className="text-sm text-gray-600">Total Tests</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-green-600">{summary.passedTests}</div>
+            <div className="text-2xl font-bold text-green-600">
+              {summary.passedTests}
+            </div>
             <div className="text-sm text-gray-600">Passed</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-red-600">{summary.failedTests}</div>
+            <div className="text-2xl font-bold text-red-600">
+              {summary.failedTests}
+            </div>
             <div className="text-sm text-gray-600">Failed</div>
           </div>
           <div className="text-center">
@@ -68,8 +74,18 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
         {/* Download Button */}
         <div className="mt-4 flex justify-end">
           <Button onClick={handleDownload} variant="outline" size="sm">
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            <svg
+              className="w-4 h-4 mr-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
             </svg>
             Download Results
           </Button>
@@ -81,21 +97,21 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8" aria-label="Tabs">
             <button
-              onClick={() => setActiveTab('results')}
+              onClick={() => setActiveTab("results")}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'results'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                activeTab === "results"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
             >
               Test Results
             </button>
             <button
-              onClick={() => setActiveTab('clusters')}
+              onClick={() => setActiveTab("clusters")}
               className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'clusters'
-                  ? 'border-indigo-500 text-indigo-600'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                activeTab === "clusters"
+                  ? "border-indigo-500 text-indigo-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
               }`}
             >
               Error Analysis ({errorClusters.summary.clustersFound} patterns)
@@ -104,10 +120,8 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
         </div>
       )}
 
-
-
       {/* Tab Content */}
-      {activeTab === 'results' && (
+      {activeTab === "results" && (
         <Card title="Test Results">
           <div className="space-y-4">
             {results.map((result, index) => (
@@ -118,10 +132,10 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center space-x-3">
                     <Badge
-                      variant={result.passed ? 'success' : 'error'}
+                      variant={result.passed ? "success" : "error"}
                       className="text-xs"
                     >
-                      {result.passed ? 'PASSED' : 'FAILED'}
+                      {result.passed ? "PASSED" : "FAILED"}
                     </Badge>
                     <span className="text-sm text-gray-600">
                       Test #{index + 1}
@@ -138,27 +152,44 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
                 {/* Prompt and Response */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-3">
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Prompt</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      Prompt
+                    </h4>
                     <div className="bg-gray-50 p-3 rounded text-sm">
-                      {result.prompt || 'No prompt available'}
+                      {result.prompt.raw || "No prompt available"}
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-gray-700 mb-2">Response</h4>
+                    <h4 className="text-sm font-medium text-gray-700 mb-2">
+                      Response
+                    </h4>
                     <div className="bg-gray-50 p-3 rounded text-sm">
-                      {result.response || 'No response available'}
+                      {result.response || "No response available"}
                     </div>
                   </div>
                 </div>
 
-
                 {/* Reason */}
-                  <div className="mt-3">
-                    <h4 className={cn("text-sm font-medium mb-2", result.passed ? "text-green-700" : "text-red-700")}>Details</h4>
-                    <div className={cn(" border p-3 rounded text-sm", result.passed ? "text-green-800 bg-green-50" : "text-red-800 bg-red-50")}>
-                      {result.reason}
-                    </div>
+                <div className="mt-3">
+                  <h4
+                    className={cn(
+                      "text-sm font-medium mb-2",
+                      result.passed ? "text-green-700" : "text-red-700",
+                    )}
+                  >
+                    Details
+                  </h4>
+                  <div
+                    className={cn(
+                      " border p-3 rounded text-sm",
+                      result.passed
+                        ? "text-green-800 bg-green-50"
+                        : "text-red-800 bg-red-50",
+                    )}
+                  >
+                    {result.reason}
                   </div>
+                </div>
               </div>
             ))}
           </div>
@@ -166,7 +197,7 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
       )}
 
       {/* Error Clustering Tab */}
-      {activeTab === 'clusters' && errorClusters && (
+      {activeTab === "clusters" && errorClusters && (
         <Card title="Error Pattern Analysis">
           <ErrorClusteringView clusteringResults={errorClusters} />
         </Card>
@@ -209,16 +240,16 @@ interface AssertionCardProps {
 const AssertionCard: React.FC<AssertionCardProps> = ({ assertion }) => {
   const getScoreColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'text-green-600';
-    if (percentage >= 60) return 'text-yellow-600';
-    return 'text-red-600';
+    if (percentage >= 80) return "text-green-600";
+    if (percentage >= 60) return "text-yellow-600";
+    return "text-red-600";
   };
 
   const getProgressBarColor = (score: number, maxScore: number) => {
     const percentage = (score / maxScore) * 100;
-    if (percentage >= 80) return 'bg-green-500';
-    if (percentage >= 60) return 'bg-yellow-500';
-    return 'bg-red-500';
+    if (percentage >= 80) return "bg-green-500";
+    if (percentage >= 60) return "bg-yellow-500";
+    return "bg-red-500";
   };
 
   const score = assertion.score ?? 0;
@@ -232,12 +263,17 @@ const AssertionCard: React.FC<AssertionCardProps> = ({ assertion }) => {
           <span className="text-sm font-medium text-gray-900">
             {assertion.type}
           </span>
-          <Badge variant={assertion.passed ? 'success' : 'error'} className="text-xs">
-            {assertion.passed ? 'Pass' : 'Fail'}
+          <Badge
+            variant={assertion.passed ? "success" : "error"}
+            className="text-xs"
+          >
+            {assertion.passed ? "Pass" : "Fail"}
           </Badge>
         </div>
         {assertion.score !== undefined && assertion.maxScore !== undefined && (
-          <span className={`text-sm font-medium ${getScoreColor(score, maxScore)}`}>
+          <span
+            className={`text-sm font-medium ${getScoreColor(score, maxScore)}`}
+          >
             {score.toFixed(1)}/{maxScore}
           </span>
         )}
@@ -257,9 +293,7 @@ const AssertionCard: React.FC<AssertionCardProps> = ({ assertion }) => {
 
       {/* Reason */}
       {assertion.reason && (
-        <p className="text-xs text-gray-600 mt-1">
-          {assertion.reason}
-        </p>
+        <p className="text-xs text-gray-600 mt-1">{assertion.reason}</p>
       )}
     </div>
   );

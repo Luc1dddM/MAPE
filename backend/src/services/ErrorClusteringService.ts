@@ -82,6 +82,37 @@ class ErrorClusteringService {
   }
 
   /**
+   * Calculate intra-cluster similarity
+   */
+  private calculateIntraClusterSimilarity(
+    cluster: number[],
+    embeddings: EmbeddingData[],
+  ): number {
+    if (cluster.length <= 1) return 1.0;
+
+    let totalSimilarity = 0;
+    let pairs = 0;
+
+    for (let i = 0; i < cluster.length; i++) {
+      for (let j = i + 1; j < cluster.length; j++) {
+        const index1 = cluster[i];
+        const index2 = cluster[j];
+        if (index1 !== undefined && index2 !== undefined) {
+          const embedding1 = embeddings[index1]?.embedding;
+          const embedding2 = embeddings[index2]?.embedding;
+          if (embedding1 && embedding2) {
+            const similarity = this.cosineSimilarity(embedding1, embedding2);
+            totalSimilarity += similarity;
+            pairs++;
+          }
+        }
+      }
+    }
+
+    return pairs > 0 ? Math.round((totalSimilarity / pairs) * 100) / 100 : 0;
+  }
+
+  /**
    * K-means clustering using ml-kmeans library
    */
   async performKmeansClustering(
@@ -211,7 +242,7 @@ Format your response as JSON:
         ],
         insights: response,
       };
-    } catch (error) {
+    } catch (error: any) {
       logger.error("Error analyzing error patterns:", error);
       throw error;
     }
@@ -220,206 +251,261 @@ Format your response as JSON:
   /**
    * Main function to cluster failed test cases
    */
-  async clusterFailedTests(evaluationResults: any): Promise<any> {
+  async clusterFailedTests(failedResults: any): Promise<any> {
     try {
-      console.log(
-        "Starting error clustering analysis....................",
-        evaluationResults,
-      );
-      // Filter failed test cases
-      const failedTests = evaluationResults.results.filter(
-        (result: EvaluationResult) => !result.success,
-      );
-
-      console.log("Errors....................", failedTests);
-
-      if (failedTests.length === 0) {
+      // Add input validation
+      if (!failedResults || !Array.isArray(failedResults)) {
+        logger.warn(
+          "Invalid failedResults input, expected array but got:",
+          typeof failedResults,
+        );
         return {
-          clusters: [],
+          promptClusters: [],
           summary: {
             totalFailed: 0,
-            clustersFound: 0,
+            totalPrompts: 0,
+            analysisTime: new Date().toISOString(),
+          },
+          insights: "Invalid input data for clustering",
+        };
+      }
+
+      if (failedResults.length === 0) {
+        return {
+          promptClusters: [],
+          summary: {
+            totalFailed: 0,
+            totalPrompts: 0,
             analysisTime: new Date().toISOString(),
           },
           insights: "No failed tests to cluster",
         };
       }
 
-      logger.info(`Clustering ${failedTests.length} failed test cases`);
+      logger.info(`Clustering ${failedResults.length} failed test cases`);
 
-      // Prepare error texts for embedding
-      const errorTexts = failedTests.map((test: any) => {
-        const errorText = test.reason || "Unknown error";
+      // Group failed results by prompt
+      const groupedByPrompt = new Map<string, any[]>();
+
+      failedResults.forEach((test: any) => {
         const promptText = test.prompt || "No prompt";
-        const responseText = test.response || "No response";
-
-        // Combine error, prompt, and response for better clustering
-        return `Error: ${errorText}\nPrompt: ${promptText}\nResponse: ${responseText}`;
+        console.log(`Processing prompt: ${promptText}`);
+        if (!groupedByPrompt.has(promptText)) {
+          groupedByPrompt.set(promptText, []);
+        }
+        groupedByPrompt.get(promptText)!.push(test);
       });
 
-      // Generate embeddings for all error texts
-      const embeddings: EmbeddingData[] = [];
-      for (let i = 0; i < errorTexts.length; i++) {
-        logger.info(`Generating embedding ${i + 1}/${errorTexts.length}`);
-        const embedding = await this.generateEmbedding(errorTexts[i]);
-        embeddings.push({
-          index: i,
-          embedding: embedding,
-          text: errorTexts[i],
-          originalTest: failedTests[i],
+      logger.info(`Found ${groupedByPrompt.size} unique prompts`);
+
+      // Process each prompt group separately
+      const promptClusters: any[] = [];
+
+      for (const [prompt, promptFailedTests] of groupedByPrompt) {
+        logger.info(
+          `Processing prompt with ${promptFailedTests.length} failed tests`,
+        );
+
+        if (promptFailedTests.length === 1) {
+          // Single test case, no clustering needed
+          promptClusters.push({
+            prompt: prompt,
+            totalFailedTests: 1,
+            clusters: [
+              {
+                id: 0,
+                size: 1,
+                tests: [
+                  {
+                    ...promptFailedTests[0],
+                    errorText: promptFailedTests[0].reason || "Unknown error",
+                    similarity: 1.0,
+                  },
+                ],
+                representativeError:
+                  promptFailedTests[0].reason || "Unknown error",
+                avgSimilarity: 1.0,
+                category: {
+                  name: "Single Error",
+                  description: "Single failed test case",
+                  commonPatterns: [],
+                  suggestions: [],
+                },
+              },
+            ],
+            summary: {
+              clustersFound: 1,
+              avgClusterSize: 1,
+            },
+            insights: "Single test case - no clustering performed",
+          });
+          continue;
+        }
+
+        // Prepare error texts for embedding for this prompt
+        const errorTexts = promptFailedTests.map((test: any) => {
+          const errorText = test.reason ?? "Unknown error";
+          const responseText = test.response ?? "No response";
+          // Combine error and response for clustering (prompt is same for all in this group)
+          return `Error: ${errorText}\nResponse: ${responseText}`;
         });
+
+        // Generate embeddings for all error texts in this prompt group
+        const embeddings: EmbeddingData[] = [];
+        for (let i = 0; i < errorTexts.length; i++) {
+          logger.info(
+            `Generating embedding ${i + 1}/${errorTexts.length} for prompt group`,
+          );
+          const embedding = await this.generateEmbedding(
+            errorTexts[i] ?? "Error: Unknown  \nResponse: No response",
+          );
+          embeddings.push({
+            index: i,
+            embedding: embedding,
+            text: errorTexts[i] ?? "Error: Unknown  \nResponse: No response",
+            originalTest: promptFailedTests[i],
+          });
+        }
 
         // Small delay to avoid rate limiting
         await new Promise((resolve) => setTimeout(resolve, 100));
-      }
 
-      // Determine optimal number of clusters (between 2 and min(5, failedTests.length))
-      const maxClusters = Math.min(
-        5,
-        Math.max(2, Math.ceil(failedTests.length / 3)),
-      );
-      const optimalK =
-        failedTests.length >= 6 ? maxClusters : Math.min(3, failedTests.length);
+        // Determine optimal number of clusters for this prompt group
+        const maxClusters = Math.min(
+          5,
+          Math.max(2, Math.ceil(promptFailedTests.length / 3)),
+        );
+        const optimalK =
+          promptFailedTests.length >= 6
+            ? maxClusters
+            : Math.min(3, promptFailedTests.length);
 
-      // Perform K-means clustering
-      const clusteringResult = await this.performKmeansClustering(
-        embeddings,
-        optimalK,
-      );
+        // Perform K-means clustering for this prompt group
+        const clusteringResult = await this.performKmeansClustering(
+          embeddings,
+          optimalK,
+        );
 
-      // Analyze error patterns using AI
-      const errorAnalysis = await this.analyzeErrorPatterns(
-        errorTexts
-          .filter((text: any) => text && typeof text === "string") // Filter out invalid texts
-          .map((text: any) => text.split("\n")[0].replace("Error: ", "")),
-      );
+        // Analyze error patterns using AI for this prompt group
+        const errorAnalysis = await this.analyzeErrorPatterns(
+          errorTexts
+            .filter((text: any) => text && typeof text === "string") // Filter out invalid texts
+            .map((text: any) => text.split("\n")[0].replace("Error: ", "")),
+        );
 
-      // Format clusters with detailed information
-      const formattedClusters: ErrorCluster[] = clusteringResult.clusters.map(
-        (cluster: number[], clusterIndex: number) => {
-          const clusterTests = cluster
-            .map((index: number) => {
-              if (index >= failedTests.length || index >= errorTexts.length) {
-                logger.warn(
-                  `Invalid index ${index} for cluster ${clusterIndex}, max length: ${Math.min(failedTests.length, errorTexts.length)}`,
-                );
-                return null;
-              }
+        // Format clusters with detailed information for this prompt group
+        const formattedClusters: ErrorCluster[] = clusteringResult.clusters.map(
+          (cluster: number[], clusterIndex: number) => {
+            const clusterTests = cluster
+              .map((index: number) => {
+                if (
+                  index >= promptFailedTests.length ||
+                  index >= errorTexts.length
+                ) {
+                  logger.warn(
+                    `Invalid index ${index} for cluster ${clusterIndex}, max length: ${Math.min(promptFailedTests.length, errorTexts.length)}`,
+                  );
+                  return null;
+                }
 
-              const errorText = errorTexts[index];
-              if (!errorText) {
-                logger.warn(`Empty errorText at index ${index}`);
-                return null;
-              }
+                const errorText = errorTexts[index];
+                if (!errorText) {
+                  logger.warn(`Empty errorText at index ${index}`);
+                  return null;
+                }
 
-              return {
-                ...failedTests[index],
-                errorText: errorText.split("\n")[0].replace("Error: ", ""),
-                similarity: this.calculateIntraClusterSimilarity(
-                  cluster,
-                  embeddings,
-                ),
-              };
-            })
-            .filter((test: any) => test !== null); // Remove null entries
+                return {
+                  ...promptFailedTests[index],
+                  errorText:
+                    errorText.split("\n")[0]?.replace("Error: ", "") || "",
+                  similarity: this.calculateIntraClusterSimilarity(
+                    cluster,
+                    embeddings,
+                  ),
+                };
+              })
+              .filter((test: any) => test !== null); // Remove null entries
 
-          // Find the most representative error in this cluster
-          const centroid = clusteringResult.centroids[clusterIndex];
-          let mostRepresentative = cluster[0];
-          let minDistance = Infinity;
+            // Find the most representative error in this cluster
+            const centroid = clusteringResult.centroids?.[clusterIndex];
+            let mostRepresentative = cluster[0];
+            let minDistance = Infinity;
 
-          cluster.forEach((index: number) => {
-            if (index < embeddings.length) {
-              const currentEmbeddings = embeddings;
-              const embedding = currentEmbeddings[index]?.embedding;
-              if (embedding && centroid) {
-                const distance = this.euclideanDistance(embedding, centroid);
-                if (distance < minDistance) {
-                  minDistance = distance;
-                  mostRepresentative = index;
+            cluster.forEach((index: number) => {
+              if (index < embeddings.length) {
+                const embedding = embeddings[index]?.embedding;
+                if (embedding && centroid) {
+                  const distance = this.euclideanDistance(embedding, centroid);
+                  if (distance < minDistance) {
+                    minDistance = distance;
+                    mostRepresentative = index;
+                  }
                 }
               }
-            }
-          });
+            });
 
-          // Safely get representative error
-          const representativeErrorText =
-            mostRepresentative !== undefined
-              ? errorTexts[mostRepresentative]
-              : undefined;
-          const representativeError = representativeErrorText
-            ? representativeErrorText.split("\n")[0].replace("Error: ", "")
-            : "Unknown error";
+            // Safely get representative error
+            const representativeErrorText =
+              mostRepresentative !== undefined
+                ? errorTexts[mostRepresentative]
+                : undefined;
+            const representativeError = representativeErrorText
+              ? representativeErrorText
+                  .split("\n")[0]
+                  ?.replace("Error: ", "") || "Unknown error"
+              : "Unknown error";
 
-          return {
-            id: clusterIndex,
-            size: cluster.length,
-            tests: clusterTests,
-            representativeError: representativeError,
-            avgSimilarity: this.calculateIntraClusterSimilarity(
-              cluster,
-              embeddings,
-            ),
-            category: errorAnalysis.categories?.find((cat: ErrorCategory) =>
-              cat.errorIndices?.some((idx: number) => cluster.includes(idx)),
-            ) || {
-              name: `Cluster ${clusterIndex + 1}`,
-              description: "Grouped errors with similar patterns",
-              commonPatterns: [],
-              suggestions: [],
-            },
-          };
-        },
-      );
+            return {
+              id: clusterIndex,
+              size: cluster.length,
+              tests: clusterTests,
+              representativeError: representativeError,
+              avgSimilarity: this.calculateIntraClusterSimilarity(
+                cluster,
+                embeddings,
+              ),
+              category: errorAnalysis.categories?.find((cat: ErrorCategory) =>
+                cat.errorIndices?.some((idx: number) => cluster.includes(idx)),
+              ) || {
+                name: `Cluster ${clusterIndex + 1}`,
+                description: "Grouped errors with similar patterns",
+                commonPatterns: [],
+                suggestions: [],
+              },
+            };
+          },
+        );
+
+        // Add this prompt's clustering results to the final output
+        promptClusters.push({
+          prompt: prompt,
+          totalFailedTests: promptFailedTests.length,
+          clusters: formattedClusters,
+          summary: {
+            clustersFound: formattedClusters.length,
+            avgClusterSize:
+              Math.round(
+                (promptFailedTests.length / formattedClusters.length) * 10,
+              ) / 10,
+          },
+          insights: errorAnalysis.insights,
+          errorAnalysis: errorAnalysis,
+        });
+      }
 
       return {
-        clusters: formattedClusters,
+        promptClusters: promptClusters,
         summary: {
-          totalFailed: failedTests.length,
-          clustersFound: formattedClusters.length,
+          totalFailed: failedResults.length,
+          totalPrompts: groupedByPrompt.size,
           analysisTime: new Date().toISOString(),
-          avgClusterSize:
-            Math.round((failedTests.length / formattedClusters.length) * 10) /
-            10,
         },
-        insights: errorAnalysis.insights,
-        errorAnalysis: errorAnalysis,
+        insights: `Analyzed ${failedResults.length} failed tests across ${groupedByPrompt.size} unique prompts`,
       };
-    } catch (error) {
+    } catch (error: any) {
       logger.error("Error clustering failed tests:", error);
       throw error;
     }
-  }
-
-  /**
-   * Calculate intra-cluster similarity
-   */
-  calculateIntraClusterSimilarity(
-    cluster: number[],
-    embeddings: EmbeddingData[],
-  ): number {
-    if (cluster.length <= 1) return 1.0;
-
-    let totalSimilarity = 0;
-    let pairs = 0;
-
-    for (let i = 0; i < cluster.length; i++) {
-      for (let j = i + 1; j < cluster.length; j++) {
-        const index1 = cluster[i];
-        const index2 = cluster[j];
-        if (index1 !== undefined && index2 !== undefined) {
-          const embedding1 = embeddings[index1]?.embedding;
-          const embedding2 = embeddings[index2]?.embedding;
-          if (embedding1 && embedding2) {
-            const similarity = this.cosineSimilarity(embedding1, embedding2);
-            totalSimilarity += similarity;
-            pairs++;
-          }
-        }
-      }
-    }
-
-    return pairs > 0 ? Math.round((totalSimilarity / pairs) * 100) / 100 : 0;
   }
 }
 
