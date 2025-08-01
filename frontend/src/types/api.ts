@@ -63,6 +63,7 @@ export interface PromptEvaluationResponse {
       raw?: string;
     };
     evaluatedAt: string;
+    errorClusters: any;
   };
 }
 
@@ -264,7 +265,10 @@ export interface ErrorClusteringResults {
 
 export interface EvaluationResult {
   id: string;
-  prompt: string;
+  prompt: {
+    raw: string;
+    label: string;
+  };
   response: string;
   score: number;
   passed: boolean;

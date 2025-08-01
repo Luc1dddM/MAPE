@@ -51,7 +51,7 @@ class PromptfooEvaluationService {
    */
   async saveTempCsvFile(
     csvContent: Buffer,
-    evaluationId: string
+    evaluationId: string,
   ): Promise<string> {
     try {
       const tempDir = path.join(__dirname, "../../temp");
@@ -98,7 +98,7 @@ class PromptfooEvaluationService {
       // Check if file has at least header and one data row
       if (lines.length < 2) {
         throw new Error(
-          "CSV file must have at least a header row and one data row"
+          "CSV file must have at least a header row and one data row",
         );
       }
 
@@ -108,13 +108,13 @@ class PromptfooEvaluationService {
         const cols = lines[i]?.split(",").length || 0;
         if (cols !== headerCols) {
           logger.warn(
-            `Row ${i + 1} has ${cols} columns, expected ${headerCols}`
+            `Row ${i + 1} has ${cols} columns, expected ${headerCols}`,
           );
         }
       }
 
       logger.info(
-        `CSV validation passed: ${lines.length - 1} test cases found`
+        `CSV validation passed: ${lines.length - 1} test cases found`,
       );
       return true;
     } catch (error) {
@@ -178,7 +178,7 @@ class PromptfooEvaluationService {
         }
         tempCsvPath = await this.saveTempCsvFile(
           fileBuffer as unknown as Buffer,
-          evaluationId
+          evaluationId,
         );
         logger.info(`Temporary CSV file saved to: ${tempCsvPath}`);
 
@@ -190,7 +190,7 @@ class PromptfooEvaluationService {
       const config = this.generatePromptfooConfig(request, tempCsvPath);
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`
+        `eval-${evaluationId}.yaml`,
       );
 
       // Write config file
@@ -221,7 +221,7 @@ class PromptfooEvaluationService {
 
   generatePromptfooConfig(
     request: EvaluationRequest,
-    tempCsvPath?: string | null
+    tempCsvPath?: string | null,
   ) {
     // Format providers to match the example structure
     const providers = request.providers?.map((provider) => ({
@@ -378,13 +378,22 @@ class PromptfooEvaluationService {
       throw new Error(
         `Failed to read evaluation results file: ${
           error instanceof Error ? error.message : error
-        }`
+        }`,
       );
     }
   }
 
   async extractEvaluationResults(evaluationData: any): Promise<any> {
-    const { results, config, prompts } = evaluationData;
+    const { results, config } = evaluationData;
+
+    console.log("%%%%%%%%%%%%%%%%%%%%%%", evaluationData);
+
+    // Check if results structure is valid
+    if (!results || !results.stats || !results.results) {
+      throw new Error(
+        "Invalid evaluation data structure: missing results, stats, or results array",
+      );
+    }
 
     // Extract summary information
     const totalTests =
@@ -415,11 +424,12 @@ class PromptfooEvaluationService {
 
         return {
           id: result.id,
+          promptId: result.promptId,
           testIdx: result.testIdx,
           success: result.success,
           score: gradingResult.score, // Use component score directly
           reason: gradingResult.reason,
-          prompt: results.prompts[index]?.raw || null,
+          prompt: config.prompts[result.promptIdx] || null,
           response: result.response?.output || null,
           vars: result.vars,
           latencyMs: result.latencyMs,
@@ -427,13 +437,13 @@ class PromptfooEvaluationService {
           tokenUsage: result.response?.tokenUsage || null,
           passed: gradingResult.pass,
         };
-      }
+      },
     );
 
     // Calculate average score from component results
     const totalScore = extractedResults.reduce(
       (sum: any, result: any) => sum + (result.score || 0),
-      0
+      0,
     );
     const averageScore = totalTests > 0 ? totalScore / totalTests : 0;
 
@@ -462,23 +472,46 @@ class PromptfooEvaluationService {
     };
 
     // Perform error clustering if there are failed tests
-    if (failedTests > 0) {
+    if (failedTests > 0 && extractedResults && extractedResults.length > 0) {
       try {
-        logger.info("Starting error clustering analysis...");
+        logger.info("Starting error clustering analysis...", {
+          failedTests,
+          extractedResultsLength: extractedResults.length,
+          extractedResultsType: typeof extractedResults,
+        });
+        const failResults = extractedResults.filter(
+          (result: any) => !result.success,
+        );
+
+        console.log(
+          "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+          failResults,
+        );
+
+        logger.info(
+          `Filtered ${failResults.length} failed results for clustering`,
+        );
         const clusteringResults =
-          await this.errorClusteringService.clusterFailedTests(baseResults);
+          await this.errorClusteringService.clusterFailedTests(failResults);
         (baseResults as any).errorClusters = clusteringResults;
         logger.info(
-          `Error clustering completed. Found ${clusteringResults.clusters.length} clusters.`
+          `Error clustering completed. Found ${clusteringResults.promptClusters?.length || 0} prompt clusters.`,
         );
       } catch (error) {
-        logger.error("Error clustering failed:", error);
+        logger.error("Error clustering failed:", error, {
+          extractedResults: extractedResults
+            ? extractedResults.length
+            : "undefined",
+          failedTests,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
         // Don't fail the entire evaluation if clustering fails
         (baseResults as any).errorClusters = {
-          clusters: [],
+          promptClusters: [],
           summary: {
             totalFailed: failedTests,
-            clustersFound: 0,
+            totalPrompts: 0,
             analysisTime: new Date().toISOString(),
             error: error instanceof Error ? error.message : String(error),
           },
@@ -487,10 +520,10 @@ class PromptfooEvaluationService {
       }
     } else {
       (baseResults as any).errorClusters = {
-        clusters: [],
+        promptClusters: [],
         summary: {
           totalFailed: 0,
-          clustersFound: 0,
+          totalPrompts: 0,
           analysisTime: new Date().toISOString(),
         },
         insights: "No failed tests to analyze",
@@ -504,7 +537,7 @@ class PromptfooEvaluationService {
     return new Promise((resolve, reject) => {
       const outputPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`
+        `results-${evaluationId}.json`,
       );
       const args = ["promptfoo", "eval", "-c", configPath, "-o", outputPath];
 
@@ -556,8 +589,8 @@ class PromptfooEvaluationService {
           if (code !== 0 && code !== 100) {
             reject(
               new Error(
-                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`
-              )
+                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`,
+              ),
             );
             return;
           }
@@ -567,9 +600,8 @@ class PromptfooEvaluationService {
             logger.warn("Evaluation completed with test failures");
           }
 
-          const extractedData = await this.extractEvaluationResultsFromFile(
-            outputPath
-          );
+          const extractedData =
+            await this.extractEvaluationResultsFromFile(outputPath);
           console.log(JSON.stringify(extractedData, null, 2));
 
           // QUAN TRỌNG: Phải resolve() thay vì return
@@ -585,7 +617,7 @@ class PromptfooEvaluationService {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`
+        `results-${evaluationId}.json`,
       );
       const resultsExist = await fs.pathExists(resultsPath);
 
@@ -627,7 +659,7 @@ class PromptfooEvaluationService {
       // Sort by creation date (newest first)
       evaluations.sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
       );
 
       return evaluations;
@@ -641,11 +673,11 @@ class PromptfooEvaluationService {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`
+        `results-${evaluationId}.json`,
       );
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`
+        `eval-${evaluationId}.yaml`,
       );
 
       // Delete results file
