@@ -20,6 +20,7 @@ import {
   evaluationFormSchema,
   type EvaluationFormData as ValidationFormData,
 } from "./steps/validation";
+import { Sparkles, Brain, Zap } from "lucide-react";
 
 // Use the validated form data type from validation schema
 type EvaluationFormData = ValidationFormData;
@@ -120,7 +121,6 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
       );
     }
   }, [criteriaData, setValue]);
-
   // Submit function with CSV file handling
   const onSubmit = async (data: EvaluationFormData) => {
     console.log("SubmitData:", data);
@@ -277,101 +277,154 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
   };
 
   return (
-    <form className="space-y-6 relative" onSubmit={handleSubmit(onSubmit)}>
-      <div className="mt-4">
+    <>
+      <div className="mt-4 mb-4">
         <Stepper steps={steps} currentStep={currentStep} />
       </div>
-      <Card
-        title="Create New Evaluation"
-        description="Set up a comprehensive prompt evaluation with multiple techniques and test cases"
-      >
-        {currentStep === 0 && (
-          <PromptsStep
-            form={formMethods}
-            promptFields={promptFields}
-            appendPrompt={appendPrompt}
-            removePrompt={removePrompt}
-            errors={errors}
-          />
-        )}
-        {currentStep === 1 && (
-          <TestsStep
-            form={formMethods}
-            testFields={testFields}
-            appendTest={appendTest}
-            removeTest={removeTest}
-            errors={formMethods.formState.errors}
-          />
-        )}
-        {currentStep === 2 && (
-          <ConfigStep
-            form={formMethods}
-            providersData={providersData}
-            criteriaData={criteriaData}
-            errors={formMethods.formState.errors}
-          />
-        )}
-        <div className="flex justify-between space-x-3 mt-6">
-          {currentStep > 0 && (
-            <Button
-              type="button"
-              onClick={() => setCurrentStep(currentStep - 1)}
-              className="px-6 py-2"
-            >
-              Back
-            </Button>
+      <form className="space-y-6 relative" onSubmit={handleSubmit(onSubmit)}>
+        <Card
+          title="Create New Evaluation"
+          description="Set up a comprehensive prompt evaluation with multiple techniques and test cases"
+        >
+          {currentStep === 0 && (
+            <PromptsStep
+              form={formMethods}
+              promptFields={promptFields}
+              appendPrompt={appendPrompt}
+              removePrompt={removePrompt}
+              errors={errors}
+            />
           )}
-          {currentStep < steps.length - 1 && (
-            <Button
-              type="button"
-              className="px-6 py-2"
-              onClick={async () => {
-                const isValid = await validateCurrentStep();
-                if (isValid) {
-                  setCurrentStep(currentStep + 1);
-                }
-              }}
-            >
-              Next
-            </Button>
+          {currentStep === 1 && (
+            <TestsStep
+              form={formMethods}
+              testFields={testFields}
+              appendTest={appendTest}
+              removeTest={removeTest}
+              errors={formMethods.formState.errors}
+            />
           )}
-          {currentStep === steps.length - 1 && (
-            <Button
-              type="submit"
-              loading={isSubmitting}
-              disabled={isSubmitting}
-              className="px-6 py-2"
-            >
-              {isSubmitting ? "Starting Evaluation..." : "Start Evaluation"}
-            </Button>
+          {currentStep === 2 && (
+            <ConfigStep
+              form={formMethods}
+              providersData={providersData}
+              criteriaData={criteriaData}
+              errors={formMethods.formState.errors}
+            />
           )}
-        </div>
-      </Card>
-      {isSubmitting && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white bg-opacity-70 rounded-md">
-          <svg
-            className="animate-spin h-10 w-10 text-blue-600"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            ></circle>
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v8z"
-            ></path>
-          </svg>
-          <span className="mt-4 text-lg text-blue-700">Processing...</span>
-        </div>
-      )}
-    </form>
+          <div className="flex justify-between space-x-3 mt-6">
+            {currentStep > 0 && (
+              <Button
+                type="button"
+                onClick={() => setCurrentStep(currentStep - 1)}
+                className="px-6 py-2"
+              >
+                Back
+              </Button>
+            )}
+            {currentStep < steps.length - 1 && (
+              <Button
+                type="button"
+                className="px-6 py-2"
+                onClick={async () => {
+                  const isValid = await validateCurrentStep();
+                  if (isValid) {
+                    setCurrentStep(currentStep + 1);
+                  }
+                }}
+              >
+                Next
+              </Button>
+            )}
+            {currentStep === steps.length - 1 && (
+              <Button
+                type="submit"
+                loading={isSubmitting}
+                disabled={isSubmitting}
+                className={`
+              relative px-8 py-3 rounded-xl font-semibold text-white text-lg
+              bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700
+              hover:from-blue-600 hover:via-blue-700 hover:to-blue-800
+              active:from-blue-700 active:via-blue-800 active:to-blue-900
+              disabled:from-blue-300 disabled:via-blue-400 disabled:to-blue-500
+              disabled:cursor-not-allowed
+              transform transition-all duration-300 ease-in-out
+              hover:shadow-xl active:scale-[0.97]
+              disabled:scale-100 disabled:shadow-none
+              shadow-lg
+              before:absolute before:inset-0 before:rounded-xl
+              before:bg-gradient-to-r before:from-white/20 before:to-transparent
+              before:opacity-0 hover:before:opacity-100 before:transition-opacity before:duration-200
+              overflow-hidden
+            `}
+              >
+                <span className="relative z-10 flex items-center justify-center gap-3">
+                  {isSubmitting ? (
+                    <div className="animate-spin h-5 w-5 border-2 border-white/30 border-t-white rounded-full" />
+                  ) : (
+                    <div className="relative">
+                      <Sparkles className="h-5 w-5 text-white animate-pulse" />
+                      <Zap className="absolute -top-1 -right-1 h-3 w-3 text-yellow-300 animate-bounce" />
+                    </div>
+                  )}
+                  <span className="font-medium whitespace-nowrap">
+                    {isSubmitting
+                      ? "Starting Evaluation..."
+                      : "Start Evaluation"}
+                  </span>
+                </span>
+                <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
+                  <div
+                    className={`
+                  absolute top-2 left-4 w-1 h-1 bg-white/40 rounded-full
+                  ${isSubmitting ? "animate-ping" : "animate-pulse"}
+                `}
+                  />
+                  <div
+                    className={`
+                  absolute bottom-3 right-6 w-1 h-1 bg-white/30 rounded-full
+                  ${isSubmitting ? "animate-ping" : "animate-pulse"}
+                `}
+                    style={{ animationDelay: "150ms" }}
+                  />
+                  <div
+                    className={`
+                  absolute top-1/2 right-3 w-0.5 h-0.5 bg-white/50 rounded-full
+                  ${isSubmitting ? "animate-ping" : "animate-pulse"}
+                `}
+                    style={{ animationDelay: "300ms" }}
+                  />
+                </div>
+              </Button>
+            )}
+          </div>
+        </Card>
+        {isSubmitting && (
+          <div className="absolute inset-0 z-50 flex flex-col items-center justify-center bg-white bg-opacity-70 rounded-md">
+            <svg
+              className="animate-spin h-10 w-10 text-blue-600"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8z"
+              ></path>
+            </svg>
+            <span className="mt-4 text-lg text-blue-700">Processing...</span>
+          </div>
+        )}
+      </form>
+    </>
   );
 };

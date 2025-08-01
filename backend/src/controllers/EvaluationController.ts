@@ -28,13 +28,13 @@ class EvaluationController {
       evaluationRequest.testDataFile = req.file;
       console.log(
         "Received evaluation request:",
-        JSON.stringify(evaluationRequest, null, 2),
+        JSON.stringify(evaluationRequest, null, 2)
       );
 
       // Debug: Log the full request body
       logger.info(
         "Full request body received:",
-        JSON.stringify(req.body, null, 2),
+        JSON.stringify(req.body, null, 2)
       );
 
       logger.info("Creating new evaluation:", {
@@ -45,8 +45,9 @@ class EvaluationController {
         hasCriteria: !!evaluationRequest.evaluationCriteria,
       });
 
-      const result =
-        await this.evaluationService.evaluatePrompts(evaluationRequest);
+      const result = await this.evaluationService.evaluatePrompts(
+        evaluationRequest
+      );
 
       console.log("Evaluation result:", JSON.stringify(result, null, 2));
 
@@ -67,6 +68,7 @@ class EvaluationController {
       });
     } catch (error) {
       logger.error("Error in createEvaluation:", error);
+      console.log("Request body:", req.body);
       res.status(500).json({
         success: false,
         error: "Failed to create evaluation",
@@ -82,8 +84,9 @@ class EvaluationController {
 
       logger.info(`Getting evaluation results for ID: ${evaluationId}`);
 
-      const results =
-        await this.evaluationService.getEvaluationResults(evaluationId);
+      const results = await this.evaluationService.getEvaluationResults(
+        evaluationId
+      );
       // const formattedResults = this.evaluationService.formatResultsForUI(results);
 
       res.status(200).json({
@@ -268,8 +271,9 @@ class EvaluationController {
       logger.info(`Downloading evaluation ${evaluationId} in ${format} format`);
 
       // Get the evaluation results
-      const results =
-        await this.evaluationService.getEvaluationResults(evaluationId);
+      const results = await this.evaluationService.getEvaluationResults(
+        evaluationId
+      );
 
       if (!results) {
         res.status(404).json({
@@ -301,7 +305,7 @@ class EvaluationController {
 
       res.setHeader(
         "Content-Disposition",
-        `attachment; filename="${filename}"`,
+        `attachment; filename="${filename}"`
       );
       res.setHeader("Content-Type", contentType);
       res.send(content);
@@ -337,13 +341,16 @@ class EvaluationController {
         result.gradingResult?.componentResults
           ?.map(
             (comp: ComponentResult) =>
-              `${comp.assertion?.type}: ${comp.score}/10`,
+              `${comp.assertion?.type}: ${comp.score}/10`
           )
           .join("; ") || "No assertions";
 
       return [
         result.id || "",
-        `"${(result.prompt?.raw || result.prompt?.label || "").replace(/"/g, '""')}"`,
+        `"${(result.prompt?.raw || result.prompt?.label || "").replace(
+          /"/g,
+          '""'
+        )}"`,
         `"${(result.response?.output || "").replace(/"/g, '""')}"`,
         result.gradingResult?.score || 0,
         result.gradingResult?.pass || false,

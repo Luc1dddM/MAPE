@@ -137,10 +137,10 @@ const validatePromptfooEvaluation = [
     .isLength({ max: 500 })
     .withMessage("Description must not exceed 500 characters"),
 
-  body("testDataFile")
-    .optional()
-    .isString()
-    .withMessage("Test data file must be a string"),
+  // body("testDataFile")
+  //   .optional()
+  //   .isString()
+  //   .withMessage("Test data file must be a string"),
 
   (req: Request, res: Response, next: NextFunction): void => {
     const errors = validationResult(req);

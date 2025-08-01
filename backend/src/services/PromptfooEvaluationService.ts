@@ -49,16 +49,19 @@ class PromptfooEvaluationService {
   /**
    * Save uploaded CSV file to temporary location for promptfoo
    */
-  async saveTempCsvFile(csvContent: Buffer, evaluationId: string): Promise<string> {
+  async saveTempCsvFile(
+    csvContent: Buffer,
+    evaluationId: string
+  ): Promise<string> {
     try {
       const tempDir = path.join(__dirname, "../../temp");
       await fs.ensureDir(tempDir); // Ensure temp directory exists
-      
+
       const tempCsvPath = path.join(tempDir, `testdata-${evaluationId}.csv`);
-      
+
       await fs.writeFile(tempCsvPath, csvContent);
       logger.info(`Temporary CSV file saved: ${tempCsvPath}`);
-      
+
       return tempCsvPath;
     } catch (error) {
       logger.error("Error saving temporary CSV file:", error);
@@ -86,27 +89,36 @@ class PromptfooEvaluationService {
    */
   async validateCsvFile(csvPath: string): Promise<boolean> {
     try {
-      const content = await fs.readFile(csvPath, 'utf-8');
-      const lines = content.trim().split('\n').filter(line => line.trim());
-      
+      const content = await fs.readFile(csvPath, "utf-8");
+      const lines = content
+        .trim()
+        .split("\n")
+        .filter((line) => line.trim());
+
       // Check if file has at least header and one data row
       if (lines.length < 2) {
-        throw new Error('CSV file must have at least a header row and one data row');
+        throw new Error(
+          "CSV file must have at least a header row and one data row"
+        );
       }
-      
+
       // Basic validation - ensure consistent column count
-      const headerCols = lines[0]?.split(',').length || 0;
+      const headerCols = lines[0]?.split(",").length || 0;
       for (let i = 1; i < lines.length; i++) {
-        const cols = lines[i]?.split(',').length || 0;
+        const cols = lines[i]?.split(",").length || 0;
         if (cols !== headerCols) {
-          logger.warn(`Row ${i + 1} has ${cols} columns, expected ${headerCols}`);
+          logger.warn(
+            `Row ${i + 1} has ${cols} columns, expected ${headerCols}`
+          );
         }
       }
-      
-      logger.info(`CSV validation passed: ${lines.length - 1} test cases found`);
+
+      logger.info(
+        `CSV validation passed: ${lines.length - 1} test cases found`
+      );
       return true;
     } catch (error) {
-      logger.error('CSV validation failed:', error);
+      logger.error("CSV validation failed:", error);
       throw error;
     }
   }
@@ -124,18 +136,18 @@ class PromptfooEvaluationService {
   async cleanupOldTempFiles(hoursOld: number = 24): Promise<void> {
     try {
       const tempDir = this.getTempDir();
-      if (!await fs.pathExists(tempDir)) {
+      if (!(await fs.pathExists(tempDir))) {
         return;
       }
 
       const files = await fs.readdir(tempDir);
-      const cutoffTime = Date.now() - (hoursOld * 60 * 60 * 1000);
+      const cutoffTime = Date.now() - hoursOld * 60 * 60 * 1000;
 
       for (const file of files) {
-        if (file.startsWith('testdata-') && file.endsWith('.csv')) {
+        if (file.startsWith("testdata-") && file.endsWith(".csv")) {
           const filePath = path.join(tempDir, file);
           const stats = await fs.stat(filePath);
-          
+
           if (stats.mtime.getTime() < cutoffTime) {
             await fs.remove(filePath);
             logger.info(`Cleaned up old temp file: ${filePath}`);
@@ -143,22 +155,33 @@ class PromptfooEvaluationService {
         }
       }
     } catch (error) {
-      logger.warn('Error cleaning up old temp files:', error);
+      logger.warn("Error cleaning up old temp files:", error);
     }
   }
 
   async evaluatePrompts(request: EvaluationRequest): Promise<any> {
     let tempCsvPath: string | null = null;
-    
+
     try {
       const evaluationId = uuidv4();
       logger.info(`Starting evaluation with ID: ${evaluationId}`);
 
       // Handle CSV file if provided
       if (request.testDataFile) {
-        tempCsvPath = await this.saveTempCsvFile(request.testDataFile, evaluationId);
+        let fileBuffer = request.testDataFile.buffer;
+        if (!fileBuffer) {
+          throw new Error("Uploaded file is missing buffer data");
+        }
+        // Nếu là ArrayBuffer thì convert sang Buffer
+        if (!(fileBuffer instanceof Buffer)) {
+          fileBuffer = Buffer.from(fileBuffer);
+        }
+        tempCsvPath = await this.saveTempCsvFile(
+          fileBuffer as unknown as Buffer,
+          evaluationId
+        );
         logger.info(`Temporary CSV file saved to: ${tempCsvPath}`);
-        
+
         // Validate CSV format
         await this.validateCsvFile(tempCsvPath);
       }
@@ -167,7 +190,7 @@ class PromptfooEvaluationService {
       const config = this.generatePromptfooConfig(request, tempCsvPath);
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`,
+        `eval-${evaluationId}.yaml`
       );
 
       // Write config file
@@ -196,7 +219,10 @@ class PromptfooEvaluationService {
     }
   }
 
-    generatePromptfooConfig(request: EvaluationRequest, tempCsvPath?: string | null) {
+  generatePromptfooConfig(
+    request: EvaluationRequest,
+    tempCsvPath?: string | null
+  ) {
     // Format providers to match the example structure
     const providers = request.providers?.map((provider) => ({
       id: provider.id || "google:gemini-2.5-flash",
@@ -251,13 +277,13 @@ class PromptfooEvaluationService {
     let tests: any = []; // Change to any to support both array and string format
     console.log("request.testDataFile", request.testDataFile);
     console.log("tempCsvPath", tempCsvPath);
-    
+
     // Priority 1: If there's a CSV file reference, add it (and skip inline tests)
     if (tempCsvPath) {
       // Use simple format: tests: file:filename.csv
       tests = tempCsvPath;
       logger.info(`Using CSV file for tests: ${tempCsvPath}`);
-    } 
+    }
     // Priority 2: Add inline test cases only if no CSV file
     else if (request.testCases && request.testCases.length > 0) {
       tests = []; // Reset to array for inline tests
@@ -290,7 +316,7 @@ class PromptfooEvaluationService {
       logger.info(`Using ${inlineTests.length} inline test cases`);
     }
     console.log("tests", tests);
-    
+
     // If no test cases provided but we have prompts, create a simple test case
     if (tests.length === 0 && prompts.length > 0) {
       tests.push({
@@ -310,9 +336,8 @@ class PromptfooEvaluationService {
       prompts: prompts,
       tests: tests,
     };
-    
 
-     // Add defaultTest only if it has content
+    // Add defaultTest only if it has content
     if (Object.keys(defaultTest).length > 0) {
       config.defaultTest = defaultTest;
     }
@@ -351,7 +376,9 @@ class PromptfooEvaluationService {
       return await this.extractEvaluationResults(evaluationData);
     } catch (error) {
       throw new Error(
-        `Failed to read evaluation results file: ${error instanceof Error ? error.message : error}`,
+        `Failed to read evaluation results file: ${
+          error instanceof Error ? error.message : error
+        }`
       );
     }
   }
@@ -400,13 +427,13 @@ class PromptfooEvaluationService {
           tokenUsage: result.response?.tokenUsage || null,
           passed: gradingResult.pass,
         };
-      },
+      }
     );
 
     // Calculate average score from component results
     const totalScore = extractedResults.reduce(
       (sum: any, result: any) => sum + (result.score || 0),
-      0,
+      0
     );
     const averageScore = totalTests > 0 ? totalScore / totalTests : 0;
 
@@ -442,7 +469,7 @@ class PromptfooEvaluationService {
           await this.errorClusteringService.clusterFailedTests(baseResults);
         (baseResults as any).errorClusters = clusteringResults;
         logger.info(
-          `Error clustering completed. Found ${clusteringResults.clusters.length} clusters.`,
+          `Error clustering completed. Found ${clusteringResults.clusters.length} clusters.`
         );
       } catch (error) {
         logger.error("Error clustering failed:", error);
@@ -477,7 +504,7 @@ class PromptfooEvaluationService {
     return new Promise((resolve, reject) => {
       const outputPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`,
+        `results-${evaluationId}.json`
       );
       const args = ["promptfoo", "eval", "-c", configPath, "-o", outputPath];
 
@@ -529,8 +556,8 @@ class PromptfooEvaluationService {
           if (code !== 0 && code !== 100) {
             reject(
               new Error(
-                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`,
-              ),
+                `Evaluation failed with exit code ${code}. Stderr: ${stderr}`
+              )
             );
             return;
           }
@@ -540,8 +567,9 @@ class PromptfooEvaluationService {
             logger.warn("Evaluation completed with test failures");
           }
 
-          const extractedData =
-            await this.extractEvaluationResultsFromFile(outputPath);
+          const extractedData = await this.extractEvaluationResultsFromFile(
+            outputPath
+          );
           console.log(JSON.stringify(extractedData, null, 2));
 
           // QUAN TRỌNG: Phải resolve() thay vì return
@@ -557,7 +585,7 @@ class PromptfooEvaluationService {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`,
+        `results-${evaluationId}.json`
       );
       const resultsExist = await fs.pathExists(resultsPath);
 
@@ -599,7 +627,7 @@ class PromptfooEvaluationService {
       // Sort by creation date (newest first)
       evaluations.sort(
         (a, b) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
 
       return evaluations;
@@ -613,11 +641,11 @@ class PromptfooEvaluationService {
     try {
       const resultsPath = path.join(
         this.resultsDir,
-        `results-${evaluationId}.json`,
+        `results-${evaluationId}.json`
       );
       const configPath = path.join(
         this.evaluationsDir,
-        `eval-${evaluationId}.yaml`,
+        `eval-${evaluationId}.yaml`
       );
 
       // Delete results file
