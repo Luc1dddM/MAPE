@@ -32,7 +32,7 @@ class LLMPromptOptimizer {
    */
   async optimizePrompt(
     originalPrompt: string,
-    failedClusters: any[],
+    failedClusters: FailedCluster[],
   ): Promise<string> {
     try {
       const optimizationPrompt = this.buildOptimizationPrompt(
@@ -211,7 +211,7 @@ class LLMPromptOptimizer {
 
     // Process each cluster reason to generate specific improvement suggestions
     failedClusters.forEach((cluster: FailedCluster, index: number) => {
-      const clusterReason = cluster.reason.toLowerCase();
+      const clusterReason = (cluster.reason || "").toLowerCase();
 
       // Add cluster-specific issues based on the provided reason
       if (
@@ -295,7 +295,7 @@ class LLMPromptOptimizer {
 
     // Check for common failure patterns in reasons
     const reasonTexts = allFailedCases.map((tc: FailedTestCase) =>
-      tc.reason.toLowerCase(),
+      (tc.reason || "").toLowerCase(),
     );
     if (
       reasonTexts.some(
@@ -335,99 +335,5 @@ class LLMPromptOptimizer {
   }
 }
 
-/**
- * Usage example demonstrating prompt optimization with failed clusters
- * @returns {Promise<string>} Promise resolving to the optimized prompt string
- */
-async function optimizePromptExample() {
-  const apiKey = process.env?.["GEMINI_API_KEY"] || "your-api-key-here";
-  const optimizer = new LLMPromptOptimizer(apiKey);
-
-  const originalPrompt = "Answer the user's question about energy services";
-
-  const failedClusters = [
-    {
-      reason:
-        "The AI's output correctly identifies `isValid` as true and `isRelevant` as false. However, the `cleanedQuery` field is an empty string, while the expected output shows the original query 'My dog hates electric bills'. Additionally, the `reason` provided by the AI is generic ('The query lacks any content expressing a literal energy service intent...'), whereas the expected reason is more specific and accurate to the likely input context ('The query mentions 'electric bills' but in a meta",
-      failedTestCases: [
-        {
-          assertion: {
-            type: "llm-rubric",
-            value:
-              "Evaluate the accuracy of the AI response. Consider:\n                1. Factual correctness\n                2. Proper handling of the input\n                3. Adherence to the expected format\n\n                Rate from 0-10 where:\n                - 9-10: Highly accurate response\n                - 7-8: Mostly accurate with minor issues\n                - 5-6: Somewhat accurate but notable problems\n                - 3-4: Poor accuracy with significant errors\n                ",
-          },
-          pass: false,
-          score: 3,
-          reason:
-            "The AI's output correctly identifies `isValid` as true and `isRelevant` as false. However, the `cleanedQuery` field is an empty string, while the expected output shows the original query 'My dog hates electric bills'. Additionally, the `reason` provided by the AI is generic ('The query lacks any content expressing a literal energy service intent...'), whereas the expected reason is more specific and accurate to the likely input context ('The query mentions 'electric bills' but in a ",
-          tokensUsed: {
-            total: 1813,
-            prompt: 410,
-            completion: 133,
-            cached: 0,
-            completionDetails: {
-              reasoning: 0,
-              acceptedPrediction: 0,
-              rejectedPrediction: 0,
-            },
-          },
-        },
-      ],
-      prompt:
-        "You are an expert query analysis system for energy services. Your task is to analyze user queries and determine their relevance to actual energy services provided by a utility or service provider.\n\nStrictly adhere to the following rules:\n\n1.  **Definition of Relevance:**\n    *   A query is considered **relevant** ONLY if it is a direct, literal question or statement pertaining to actual energy services, such as:\n        *   Inquiries about utility bills (e.g., understanding charge",
-    },
-    {
-      reason:
-        "The AI's response incorrectly sets `isRelevant` to `false` and provides an empty `cleanedQuery`, which directly contradicts the expected output where `isRelevant` is `true` and a specific cleaned query is provided. The `reason` field also reflects this misunderstanding of the input. While the `isValid` field is correct and the JSON format is maintained, the core purpose of identifying relevance and cleaning the query was entirely missed.",
-      failedTestCases: [
-        {
-          assertion: {
-            type: "llm-rubric",
-            value:
-              "Evaluate the accuracy of the AI response. Consider:\n                1. Factual correctness\n                2. Proper handling of the input\n                3. Adherence to the expected format\n\n                Rate from 0-10 where:\n                - 9-10: Highly accurate response\n                - 7-8: Mostly accurate with minor issues\n                - 5-6: Somewhat accurate but notable problems\n                - 3-4: Poor accuracy with significant errors\n                ",
-          },
-          pass: false,
-          score: 1,
-          reason:
-            "The AI's response incorrectly sets `isRelevant` to `false` and provides an empty `cleanedQuery`, which directly contradicts the expected output where `isRelevant` is `true` and a specific cleaned query is provided. The `reason` field also reflects this misunderstanding of the input. While the `isValid` field is correct and the JSON format is maintained, the core purpose of identifying relevance and cleaning the query was entirely missed.",
-          tokensUsed: {
-            total: 1957,
-            prompt: 431,
-            completion: 108,
-            cached: 0,
-            completionDetails: {
-              reasoning: 0,
-              acceptedPrediction: 0,
-              rejectedPrediction: 0,
-            },
-          },
-        },
-      ],
-      prompt:
-        "You are an expert query analysis system for energy services. Your task is to analyze user queries and determine their relevance to actual energy services provided by a utility or service provider.\n\nStrictly adhere to the following rules:\n\n1.  **Definition of Relevance:**\n    *   A query is considered **relevant** ONLY if it is a direct, literal question or statement pertaining to actual energy services, such as:\n        *   Inquiries about utility bills (e.g., understanding charge",
-    },
-  ];
-
-  try {
-    const optimizedPrompt = await optimizer.optimizePrompt(
-      originalPrompt,
-      failedClusters,
-    );
-
-    console.log("Original:", originalPrompt);
-    console.log("Optimized:", optimizedPrompt);
-
-    return optimizedPrompt;
-  } catch (error) {
-    console.error("Optimization failed:", error);
-    throw error;
-  }
-}
-
 // Export for use in other modules
-export { LLMPromptOptimizer, optimizePromptExample };
-
-// Run example if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  optimizePromptExample();
-}
+export { LLMPromptOptimizer };

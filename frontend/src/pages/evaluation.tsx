@@ -1,20 +1,28 @@
-import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Tab } from '@headlessui/react';
-import { EvaluationForm } from '@/components/evaluation/EvaluationForm';
-import { EvaluationResults } from '@/components/evaluation/EvaluationResults';
-import { Card, LoadingSpinner, Button } from '@/components/ui';
-import { evaluationService } from '@/services/api';
-import { 
-  EvaluationSummary, 
-  EvaluationResult, 
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Tab } from "@headlessui/react";
+import { EvaluationForm } from "@/components/evaluation/EvaluationForm";
+import { EvaluationResults } from "@/components/evaluation/EvaluationResults";
+import OptimizeTab from "@/components/evaluation/OptimizeTab";
+import { Card, LoadingSpinner, Button } from "@/components/ui";
+import { evaluationService } from "@/services/api";
+import {
+  optimizeService,
+  OptimizePromptRequest,
+  OptimizePromptResponse,
+  ComparePromptsResponse,
+} from "@/services/optimize";
+import {
+  EvaluationSummary,
+  EvaluationResult,
   EvaluationMetadata,
-  ErrorClusteringResults
-} from '@/types/api';
+  ErrorClusteringResults,
+} from "@/types/api";
+import toast from "react-hot-toast";
 
 // Define EvaluationStatus type locally since it's not exported
 interface EvaluationStatus {
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: "pending" | "running" | "completed" | "failed";
   progress?: {
     completed: number;
     total: number;
@@ -25,7 +33,9 @@ interface EvaluationStatus {
 
 export default function EvaluationPage() {
   const [selectedTab, setSelectedTab] = useState(0);
-  const [currentEvaluationId, setCurrentEvaluationId] = useState<string | null>(null);
+  const [currentEvaluationId, setCurrentEvaluationId] = useState<string | null>(
+    null,
+  );
   const [currentEvaluationResults, setCurrentEvaluationResults] = useState<{
     summary: EvaluationSummary;
     results: EvaluationResult[];
@@ -35,6 +45,14 @@ export default function EvaluationPage() {
     timestamp: string;
     errorClusters?: ErrorClusteringResults;
   } | null>(null);
+
+  // Optimization state
+  const [optimizationData, setOptimizationData] =
+    useState<OptimizePromptResponse | null>(null);
+  const [comparisonData, setComparisonData] =
+    useState<ComparePromptsResponse | null>(null);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [isComparing, setIsComparing] = useState(false);
 
   const handleEvaluationStart = (evaluationData: {
     summary: EvaluationSummary;
@@ -50,25 +68,79 @@ export default function EvaluationPage() {
     setSelectedTab(1); // Switch to status tab
   };
 
-  console.log('Current Evaluation ID:', currentEvaluationResults);
-
   // Query for evaluation list
   const { data: evaluations = [] } = useQuery({
-    queryKey: ['evaluations'],
+    queryKey: ["evaluations"],
     queryFn: () => evaluationService.listEvaluations(),
   });
 
+  const handleOptimizeStart = async (data: {
+    originalPrompt: string;
+    selectedTestCases: any[];
+    promptIndex: number;
+    optimizationResult?: OptimizePromptResponse;
+  }) => {
+    // If we have optimization results, store them
+    if (data.optimizationResult) {
+      setOptimizationData(data.optimizationResult);
+    }
+    
+    // Switch to optimize tab when optimization starts/completes
+    setSelectedTab(2);
+    
+    if (data.optimizationResult) {
+      toast.success("Optimization completed - view results in the Optimize tab");
+    } else {
+      toast.success("Optimization started - check the Optimize tab for results");
+    }
+  };
+
+  const handleComparePrompts = async (
+    originalPrompt: string,
+    optimizedPrompt: string,
+  ) => {
+    setIsComparing(true);
+
+    try {
+      const result = await optimizeService.comparePrompts({
+        originalPrompt,
+        optimizedPrompt,
+      });
+
+      if (result.success) {
+        setComparisonData(result);
+        toast.success("Prompt comparison completed!");
+      } else {
+        toast.error(result.error || "Comparison failed");
+      }
+    } catch (error) {
+      console.error("Comparison error:", error);
+      toast.error("Failed to compare prompts");
+    } finally {
+      setIsComparing(false);
+    }
+  };
+
+  const handleOptimizeAgain = () => {
+    setOptimizationData(null);
+    setComparisonData(null);
+    setSelectedTab(1); // Go back to results tab
+    toast("Select new test cases to optimize again", { icon: "ℹ️" });
+  };
+
   const tabs = [
-    { name: 'New Evaluation', component: 'form' },
-    { name: 'Status & Results', component: 'results' },
-    { name: 'History', component: 'history' },
+    { name: "New Evaluation", component: "form" },
+    { name: "Status & Results", component: "results" },
+    { name: "Optimize", component: "optimize" },
   ];
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Prompt Evaluation</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Prompt Evaluation
+          </h1>
           <p className="text-gray-600 mt-2">
             Generate, configure, and run comprehensive prompt evaluations
           </p>
@@ -82,8 +154,8 @@ export default function EvaluationPage() {
                 className={({ selected }) =>
                   `w-full rounded-lg py-2.5 text-sm font-medium leading-5 text-blue-700 ring-white ring-opacity-60 ring-offset-2 ring-offset-blue-400 focus:outline-none focus:ring-2 ${
                     selected
-                      ? 'bg-white shadow'
-                      : 'text-blue-100 hover:bg-white/[0.12] hover:text-white'
+                      ? "bg-white shadow"
+                      : "text-blue-100 hover:bg-white/[0.12] hover:text-white"
                   }`
                 }
               >
@@ -105,16 +177,18 @@ export default function EvaluationPage() {
                   evaluationId={currentEvaluationId}
                   status={null}
                   results={currentEvaluationResults}
+                  onOptimizeStart={handleOptimizeStart}
                 />
               ) : (
                 <Card className="text-center py-12">
                   <div className="text-gray-500">
-                    <div className="text-lg font-medium mb-2">No Active Evaluation</div>
-                    <p>Start a new evaluation to see status and results here.</p>
-                    <Button
-                      onClick={() => setSelectedTab(0)}
-                      className="mt-4"
-                    >
+                    <div className="text-lg font-medium mb-2">
+                      No Active Evaluation
+                    </div>
+                    <p>
+                      Start a new evaluation to see status and results here.
+                    </p>
+                    <Button onClick={() => setSelectedTab(0)} className="mt-4">
                       Create New Evaluation
                     </Button>
                   </div>
@@ -122,14 +196,13 @@ export default function EvaluationPage() {
               )}
             </Tab.Panel>
 
-            {/* History Tab */}
+            {/* Optimize Tab */}
             <Tab.Panel>
-              <EvaluationHistory
-                evaluations={Array.isArray(evaluations) ? evaluations : (evaluations?.data?.evaluations || [])}
-                onSelectEvaluation={(id) => {
-                  setCurrentEvaluationId(id);
-                  setSelectedTab(1);
-                }}
+              <OptimizeTab
+                optimizationData={optimizationData}
+                isLoading={isOptimizing}
+                onOptimizeAgain={handleOptimizeAgain}
+                onComparePrompts={handleComparePrompts}
               />
             </Tab.Panel>
           </Tab.Panels>
@@ -151,12 +224,18 @@ interface EvaluationStatusViewProps {
     timestamp: string;
     errorClusters?: ErrorClusteringResults;
   } | null;
+  onOptimizeStart?: (data: {
+    originalPrompt: string;
+    selectedTestCases: any[];
+    promptIndex: number;
+  }) => void;
 }
 
 const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
   evaluationId,
   status,
-  results
+  results,
+  onOptimizeStart,
 }) => {
   // If we have results, show them immediately (evaluation completed)
   if (results) {
@@ -174,7 +253,9 @@ const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
           </div>
 
           <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-            <p className="text-green-800 text-sm font-medium">Evaluation Completed</p>
+            <p className="text-green-800 text-sm font-medium">
+              Evaluation Completed
+            </p>
             <p className="text-green-700 text-sm mt-1">
               Results are ready for review below.
             </p>
@@ -188,6 +269,7 @@ const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
           metadata={results.metadata}
           evaluationId={evaluationId}
           errorClusters={results.errorClusters}
+          onOptimizeStart={onOptimizeStart}
         />
       </div>
     );
@@ -216,37 +298,41 @@ const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
           </div>
           <div className="text-sm text-gray-600">
             {status.progress && (
-              <span>Progress: {status.progress.completed}/{status.progress.total}</span>
+              <span>
+                Progress: {status.progress.completed}/{status.progress.total}
+              </span>
             )}
           </div>
         </div>
 
-        {status.status === 'running' && status.progress && (
+        {status.status === "running" && status.progress && (
           <div className="mt-4">
             <div className="w-full bg-gray-200 rounded-full h-2">
               <div
                 className="bg-blue-500 h-2 rounded-full transition-all duration-300"
                 style={{
-                  width: `${(status.progress.completed / status.progress.total) * 100}%`
+                  width: `${(status.progress.completed / status.progress.total) * 100}%`,
                 }}
               />
             </div>
             <p className="text-sm text-gray-600 mt-2">
-              {status.message || 'Running evaluation...'}
+              {status.message || "Running evaluation..."}
             </p>
           </div>
         )}
 
-        {status.status === 'failed' && status.error && (
+        {status.status === "failed" && status.error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
             <p className="text-red-800 text-sm font-medium">Error</p>
             <p className="text-red-700 text-sm mt-1">{status.error}</p>
           </div>
         )}
 
-        {status.status === 'completed' && (
+        {status.status === "completed" && (
           <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded">
-            <p className="text-green-800 text-sm font-medium">Evaluation Completed</p>
+            <p className="text-green-800 text-sm font-medium">
+              Evaluation Completed
+            </p>
             <p className="text-green-700 text-sm mt-1">
               Results are ready for review below.
             </p>
@@ -257,95 +343,33 @@ const EvaluationStatusView: React.FC<EvaluationStatusViewProps> = ({
   );
 };
 
-interface EvaluationHistoryProps {
-  evaluations: Array<{
-    id: string;
-    filename?: string;
-    createdAt: string;
-    modifiedAt?: string;
-    size?: number;
-  }>;
-  onSelectEvaluation: (id: string) => void;
-}
-
-const EvaluationHistory: React.FC<EvaluationHistoryProps> = ({
-  evaluations,
-  onSelectEvaluation
-}) => {
-  if (evaluations.length === 0) {
-    return (
-      <Card className="text-center py-12">
-        <div className="text-gray-500">
-          <div className="text-lg font-medium mb-2">No Evaluations Yet</div>
-          <p>Your evaluation history will appear here once you run evaluations.</p>
-        </div>
-      </Card>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {evaluations.map((evaluation) => (
-        <div
-          key={evaluation.id}
-          className="cursor-pointer hover:bg-gray-50 transition-colors"
-          onClick={() => onSelectEvaluation(evaluation.id)}
-        >
-          <Card>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                <div>
-                  <p className="font-medium text-gray-900">
-                    Evaluation {evaluation.id.slice(0, 8)}...
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    {new Date(evaluation.createdAt).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-              
-              <div className="text-right text-sm text-gray-600">
-                {evaluation.filename && (
-                  <p className="font-mono">{evaluation.filename}</p>
-                )}
-                {evaluation.size && (
-                  <p>{(evaluation.size / 1024).toFixed(1)} KB</p>
-                )}
-              </div>
-            </div>
-          </Card>
-        </div>
-      ))}
-    </div>
-  );
-};
-
 interface StatusBadgeProps {
-  status: EvaluationStatus['status'] | undefined;
+  status: EvaluationStatus["status"] | undefined;
 }
 
 const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
   const getStatusColor = (status: string | undefined) => {
-    if (!status) return 'bg-gray-100 text-gray-800';
-    
+    if (!status) return "bg-gray-100 text-gray-800";
+
     switch (status) {
-      case 'completed':
-        return 'bg-green-100 text-green-800';
-      case 'running':
-        return 'bg-blue-100 text-blue-800';
-      case 'failed':
-        return 'bg-red-100 text-red-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
+      case "completed":
+        return "bg-green-100 text-green-800";
+      case "running":
+        return "bg-blue-100 text-blue-800";
+      case "failed":
+        return "bg-red-100 text-red-800";
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
       default:
-        return 'bg-gray-100 text-gray-800';
+        return "bg-gray-100 text-gray-800";
     }
   };
 
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(status)}`}>
-      {status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Unknown'}
+    <span
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(status)}`}
+    >
+      {status ? status.charAt(0).toUpperCase() + status.slice(1) : "Unknown"}
     </span>
   );
 };

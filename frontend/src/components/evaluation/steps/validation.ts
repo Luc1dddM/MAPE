@@ -1,5 +1,20 @@
 import { z } from "zod";
 
+// File type checking that works in both browser and SSR environments
+const createFileSchema = () => {
+  if (typeof File !== "undefined") {
+    return z.instanceof(File);
+  }
+  // Fallback for SSR - check for File-like properties
+  return z
+    .object({
+      name: z.string(),
+      size: z.number(),
+      type: z.string(),
+    })
+    .optional();
+};
+
 // Complete evaluation form schema
 export const evaluationFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -36,7 +51,7 @@ export const evaluationFormSchema = z.object({
       .max(20, "Concurrency cannot exceed 20"),
     outputPath: z.string().min(1, "Output path is required"),
   }),
-  csvFile: z.union([z.instanceof(File), z.undefined()]).optional(), // For file upload
+  csvFile: z.union([createFileSchema(), z.undefined()]).optional(), // For file upload
 });
 
 // Individual step schemas for granular validation
@@ -62,7 +77,7 @@ export const testsStepSchema = z.object({
       }),
     )
     .optional(),
-  csvFile: z.union([z.instanceof(File), z.undefined()]).optional(),
+  csvFile: z.union([createFileSchema(), z.undefined()]).optional(),
 });
 
 export const configStepSchema = z.object({
