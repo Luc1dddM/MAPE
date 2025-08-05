@@ -61,45 +61,6 @@ export const usePromptStore = create<PromptStoreState>()(
           ),
         }));
       },
-
-      // setOriginalPrompts: (prompts: string[]) => {
-      //   set((state) => {
-      //     // Update originalPrompt for each entry, or add new if missing
-      //     const updated = prompts.map((prompt, idx) => {
-      //       const existing = state.optimizePrompts[idx];
-      //       return existing
-      //         ? { ...existing, originalPrompt: prompt }
-      //         : {
-      //             promptId: `prompt-${idx}`,
-      //             originalPrompt: prompt,
-      //             failedClusters: [],
-      //           };
-      //     });
-      //     return { optimizePrompts: updated };
-      //   });
-      // },
-
-      // setFailedTestCases: (cases: FailedTestCase[]) => {
-      //   set((state) => {
-      //     // For simplicity, assign all cases to the first prompt entry as a single cluster
-      //     if (state.optimizePrompts.length === 0) return {};
-      //     const updated = state.optimizePrompts.map((entry, idx) =>
-      //       idx === 0
-      //         ? {
-      //             ...entry,
-      //             failedClusters: [
-      //               {
-      //                 reason: "All failed test cases for this prompt",
-      //                 failedTestCases: cases,
-      //                 prompt: entry.originalPrompt,
-      //               },
-      //             ],
-      //           }
-      //         : entry,
-      //     );
-      //     return { optimizePrompts: updated };
-      //   });
-      // },
     }),
     {
       name: "prompt-store",

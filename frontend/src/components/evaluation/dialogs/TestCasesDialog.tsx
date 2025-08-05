@@ -53,7 +53,10 @@ export const TestCasesDialog: React.FC<TestCasesDialogProps> = ({
   // Convert Set to array for easier usage
   const selectedIds = selectedTestCase
     .filter(
-      (item) => item.promptId === promptId && item.clusterId === clusterId,
+      (item) =>
+        item.promptId === promptId &&
+        item.clusterId === clusterId &&
+        testCases.some((test) => test.id === item.testId),
     )
     .map((item) => item.testId);
 

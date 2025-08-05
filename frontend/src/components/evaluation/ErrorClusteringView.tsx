@@ -10,6 +10,10 @@ import {
 } from "@heroicons/react/24/outline";
 import { optimizeService, OptimizePromptRequest } from "@/services/optimize";
 import { usePromptStore } from "@/stores/promptStore";
+import {
+  useOptimizationStore,
+  createOptimizationFromResponse,
+} from "@/stores/optimizationStore";
 import toast from "react-hot-toast";
 
 // New data structure interfaces
@@ -65,6 +69,9 @@ const ErrorClusteringView = ({
   // Get prompt store state
   const { selectedTestCase } = usePromptStore();
 
+  // Get optimization store
+  const { addOptimization } = useOptimizationStore();
+
   // Modal states
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showTestCasesModal, setShowTestCasesModal] = useState(false);
@@ -118,8 +125,6 @@ const ErrorClusteringView = ({
 
   // Part 1: Data Preparation - Retrieve prompts with promptIndex and format payload
   const handleOptimizePrompt = async (promptIndex: number) => {
-    console.log("Starting optimization for prompt index:", promptIndex);
-
     // Filter selected test cases for this specific prompt
     const promptSelectedCases = selectedTestCase.filter(
       (testCase) => testCase.promptId === promptIndex.toString(),
@@ -151,8 +156,6 @@ const ErrorClusteringView = ({
       const cluster = targetPromptCluster.clusters.find(
         (c: any) => c.id === clusterId,
       );
-
-      console.log(cluster);
 
       if (cluster) {
         const test = cluster.tests.find((t: any) => t.id === testId);
@@ -208,8 +211,6 @@ const ErrorClusteringView = ({
       promptId: `${evaluationId}-prompt-${promptIndex}`,
     };
 
-    console.log("Optimization request:", optimizeRequest);
-
     // Part 2: API Call - Send formatted data to backend
     try {
       setIsOptimizing(true);
@@ -221,7 +222,18 @@ const ErrorClusteringView = ({
         toast.success("Prompt optimization completed!", {
           id: "optimize-prompt",
         });
-        console.log("Optimization response:", response);
+
+        // Store optimization result in the optimization store
+        const optimizationResult = createOptimizationFromResponse(
+          response,
+          evaluationId,
+          promptIndex,
+          originalPrompt,
+          promptSelectedCases,
+        );
+
+        const optimizationId = addOptimization(optimizationResult);
+        console.log("Stored optimization with ID:", optimizationId);
 
         // Call the onOptimizeStart callback if provided
         if (onOptimizeStart) {
@@ -380,24 +392,6 @@ const ErrorClusteringView = ({
                         <h4 className="text-lg font-semibold text-gray-900">
                           Prompt #{promptIndex + 1}
                         </h4>
-                        {/*{optimizationState?.optimizationData && (
-                          <div className="flex items-center space-x-1">
-                            <svg
-                              className="w-4 h-4 text-green-600"
-                              fill="currentColor"
-                              viewBox="0 0 20 20"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            <span className="text-xs text-green-600 font-medium">
-                              Optimized
-                            </span>
-                          </div>
-                        )}*/}
                       </div>
                       <p className="text-sm text-gray-600 mt-1">
                         {truncateText(promptCluster.prompt, 120)}

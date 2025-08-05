@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Tab } from "@headlessui/react";
 import { EvaluationForm } from "@/components/evaluation/EvaluationForm";
@@ -19,6 +19,7 @@ import {
   ErrorClusteringResults,
 } from "@/types/api";
 import toast from "react-hot-toast";
+import { useOptimizationStore } from "@/stores/optimizationStore";
 
 // Define EvaluationStatus type locally since it's not exported
 interface EvaluationStatus {
@@ -33,6 +34,9 @@ interface EvaluationStatus {
 
 export default function EvaluationPage() {
   const [selectedTab, setSelectedTab] = useState(0);
+  
+  // Get optimization store
+  const { getOptimizationsByEvaluation, optimizations } = useOptimizationStore();
   const [currentEvaluationId, setCurrentEvaluationId] = useState<string | null>(
     null,
   );
@@ -74,17 +78,34 @@ export default function EvaluationPage() {
     queryFn: () => evaluationService.listEvaluations(),
   });
 
+  // Auto-switch to optimize tab when new optimization is completed
+  useEffect(() => {
+    if (currentEvaluationId) {
+      const evaluationOptimizations = getOptimizationsByEvaluation(currentEvaluationId);
+      const completedOptimizations = evaluationOptimizations.filter(opt => opt.status === "completed");
+      
+      // If there are completed optimizations and we're not already on the optimize tab
+      if (completedOptimizations.length > 0 && selectedTab !== 2) {
+        // Check if there's a recent optimization (within last 5 seconds)
+        const recentOptimization = completedOptimizations.find(opt => {
+          const optimizedTime = new Date(opt.metadata.optimizedAt).getTime();
+          const now = Date.now();
+          return (now - optimizedTime) < 5000; // 5 seconds
+        });
+        
+        if (recentOptimization) {
+          setSelectedTab(2);
+        }
+      }
+    }
+  }, [optimizations, currentEvaluationId, selectedTab, getOptimizationsByEvaluation]);
+
   const handleOptimizeStart = async (data: {
     originalPrompt: string;
     selectedTestCases: any[];
     promptIndex: number;
     optimizationResult?: OptimizePromptResponse;
   }) => {
-    // If we have optimization results, store them
-    if (data.optimizationResult) {
-      setOptimizationData(data.optimizationResult);
-    }
-    
     // Switch to optimize tab when optimization starts/completes
     setSelectedTab(2);
     
@@ -199,10 +220,11 @@ export default function EvaluationPage() {
             {/* Optimize Tab */}
             <Tab.Panel>
               <OptimizeTab
-                optimizationData={optimizationData}
+                optimizationData={null}
                 isLoading={isOptimizing}
                 onOptimizeAgain={handleOptimizeAgain}
                 onComparePrompts={handleComparePrompts}
+                evaluationId={currentEvaluationId || undefined}
               />
             </Tab.Panel>
           </Tab.Panels>

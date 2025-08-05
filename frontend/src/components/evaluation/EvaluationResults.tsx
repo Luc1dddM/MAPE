@@ -9,6 +9,14 @@ import {
   ErrorClusteringResults,
 } from "@/types/api";
 import toast from "react-hot-toast";
+import {
+  ChartBarIcon,
+  CheckIcon,
+  ClockIcon,
+  DownloadIcon,
+  TargetIcon,
+  XIcon,
+} from "lucide-react";
 
 interface EvaluationResultsProps {
   summary: EvaluationSummary;
@@ -23,95 +31,6 @@ interface EvaluationResultsProps {
     optimizationResult?: any;
   }) => void;
 }
-
-// Icon components
-const CheckIcon = () => (
-  <svg
-    className="w-4 h-4 text-green-600"
-    fill="currentColor"
-    viewBox="0 0 20 20"
-  >
-    <path
-      fillRule="evenodd"
-      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-      clipRule="evenodd"
-    />
-  </svg>
-);
-
-const XIcon = () => (
-  <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-    <path
-      fillRule="evenodd"
-      d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-      clipRule="evenodd"
-    />
-  </svg>
-);
-
-const ChartIcon = () => (
-  <svg
-    className="w-5 h-5 text-gray-600"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-    />
-  </svg>
-);
-
-const TargetIcon = () => (
-  <svg
-    className="w-5 h-5 text-gray-600"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-    />
-  </svg>
-);
-
-const ClockIcon = () => (
-  <svg
-    className="w-4 h-4 text-gray-500"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-    />
-  </svg>
-);
-
-const DownloadIcon = () => (
-  <svg
-    className="w-4 h-4"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-    />
-  </svg>
-);
 
 // Helper function to get score color
 const getScoreColor = (score: number): string => {
@@ -160,7 +79,7 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
                 : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
             }`}
           >
-            <ChartIcon />
+            <ChartBarIcon />
             <span>Overview</span>
           </button>
           <button
@@ -196,9 +115,7 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
                   d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                 />
               </svg>
-              <span>
-                Error Analysis ({errorClusters.summary.clustersFound})
-              </span>
+              <span>Error Analysis</span>
             </button>
           )}
         </nav>
@@ -220,7 +137,7 @@ export const EvaluationResults: React.FC<EvaluationResultsProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="text-center p-4 bg-gray-50 rounded-lg">
               <div className="flex items-center justify-center mb-2">
-                <ChartIcon />
+                <ChartBarIcon />
               </div>
               <div className="text-2xl font-bold text-gray-900">
                 {summary.totalTests}
