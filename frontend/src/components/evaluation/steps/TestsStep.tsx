@@ -160,7 +160,7 @@ const TestsStep: React.FC<TestsStepProps> = ({
             checked={inputMode === "manual"}
             onChange={() => handleInputModeChange("manual")}
           />
-          Nhập tay
+          Manual
         </label>
         <label className="flex items-center gap-2">
           <input
@@ -170,7 +170,7 @@ const TestsStep: React.FC<TestsStepProps> = ({
             checked={inputMode === "csv"}
             onChange={() => handleInputModeChange("csv")}
           />
-          Import từ CSV
+          Import from CSV
         </label>
       </div>
 
@@ -280,7 +280,9 @@ const TestsStep: React.FC<TestsStepProps> = ({
                   <thead>
                     <tr className="bg-gray-50">
                       <th className="border px-2 py-1 text-left">Query</th>
-                      <th className="border px-2 py-1 text-left">ExpectedAnswer</th>
+                      <th className="border px-2 py-1 text-left">
+                        ExpectedAnswer
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -315,12 +317,12 @@ const TestsStep: React.FC<TestsStepProps> = ({
       {/* Validation message */}
       {inputMode === "manual" && testFields.length === 0 && (
         <p className="text-red-600 text-sm mt-2">
-          Vui lòng thêm ít nhất một test case hoặc chuyển sang import CSV
+          Please add at least one test case or switch to importing a CSV file.
         </p>
       )}
       {inputMode === "csv" && csvPreview.length === 0 && (
         <p className="text-red-600 text-sm mt-2">
-          Vui lòng chọn file CSV hợp lệ hoặc chuyển sang nhập tay
+          Please select a valid CSV file or switch to manual entry.
         </p>
       )}
     </Card>

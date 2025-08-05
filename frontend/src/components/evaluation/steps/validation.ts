@@ -18,13 +18,13 @@ const createFileSchema = () => {
 // Complete evaluation form schema
 export const evaluationFormSchema = z.object({
   name: z.string().min(1, "Name is required"),
-  description: z.string().min(1, "Description is required"),
+  description: z.string().optional(),
   prompts: z
     .array(
       z.object({
         content: z.string().min(1, "Prompt content is required"),
         name: z.string().min(1, "Prompt name is required"),
-      }),
+      })
     )
     .min(1, "At least one prompt is required"),
   testCases: z
@@ -33,7 +33,7 @@ export const evaluationFormSchema = z.object({
         input: z.string().optional(), // Made optional since validation is handled in component
         expected: z.string().optional(),
         description: z.string().optional(),
-      }),
+      })
     )
     .optional(),
   providers: z.array(z.string()).min(1, "Select at least one provider"),
@@ -61,7 +61,7 @@ export const promptsStepSchema = z.object({
       z.object({
         name: z.string().min(1, "Name is required"),
         content: z.string().min(1, "Content is required"),
-      }),
+      })
     )
     .min(1, "At least one prompt is required"),
 });
@@ -74,7 +74,7 @@ export const testsStepSchema = z.object({
         input: z.string().optional(),
         expected: z.string().optional(),
         description: z.string().optional(),
-      }),
+      })
     )
     .optional(),
   csvFile: z.union([createFileSchema(), z.undefined()]).optional(),
