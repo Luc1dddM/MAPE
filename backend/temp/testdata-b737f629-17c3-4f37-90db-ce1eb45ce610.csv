@@ -1,0 +1,76 @@
+query,expectedAnswer
+Show me all residentil plans in Victoria and NSW with a time of use tarif and 7200 kWh usage.,"{
+  ""cleanedQuery"": ""Show me all residential plans in Victoria and New South Wales with a time of use tariff and 7200 kWh usage.""
+}"
+give me plaan types with standing offur in melborne,"{
+  ""cleanedQuery"": ""Give me plan types with standing offer in Melbourne.""
+}"
+sr tarif and solr for Tas,"{
+  ""cleanedQuery"": ""SR tariff and solar for Tasmania.""
+}"
+Show me expird plans for SA,"{
+  ""cleanedQuery"": ""Show me expired plans for South Australia.""
+}"
+plans for commrcial custmers in brisben with solar feedin,"{
+  ""cleanedQuery"": ""Plans for commercial customers in Brisbane with solar feed-in.""
+}"
+get standing planns in perth and adeliade,"{
+  ""cleanedQuery"": ""Get standing plans in Perth and Adelaide.""
+}"
+any active offers for SME users in New South Wails?,"{
+  ""cleanedQuery"": ""Any active offers for SME users in New South Wales?""
+}"
+do kangaroos get better electric plans than me?,"{
+  ""cleanedQuery"": ""nan""
+}"
+I need a new kettle. Which power plan should I buy?,"{
+  ""cleanedQuery"": ""nan""
+}"
+why does my dog hate electricity bills?,"{
+  ""cleanedQuery"": ""nan""
+}"
+plans expiring tmrw in WA,"{
+  ""cleanedQuery"": ""Plans expiring tomorrow in Western Australia.""
+}"
+plans started last month in VIC,"{
+  ""cleanedQuery"": ""Plans started last month in Victoria.""
+}"
+reglated options in ACT with controled load,"{
+  ""cleanedQuery"": ""Regulated options in Australian Capital Territory with controlled load.""
+}"
+what’s the best elec plan for home use in NT?,"{
+  ""cleanedQuery"": ""What's the best electricity plan for home use in Northern Territory?""
+}"
+plans created between Jan 2023 and Mar 2024 for SA,"{
+  ""cleanedQuery"": ""Plans created between January 2023 and March 2024 for South Australia.""
+}"
+standing offur for busines in Qld,"{
+  ""cleanedQuery"": ""Standing offer for business in Queensland.""
+}"
+need complete netwrk mapped markit offer for brisbane,"{
+  ""cleanedQuery"": ""Need complete network mapped market offer for Brisbane.""
+}"
+,"{
+  ""cleanedQuery"": ""nan""
+}"
+get mee actve planz with solaar feedd,"{
+  ""cleanedQuery"": ""Get me active plans with solar feed.""
+}"
+I want a comersial elecricty plan with tou in NSW,"{
+  ""cleanedQuery"": ""I want a commercial electricity plan with TOU in New South Wales.""
+}"
+cheep leccy plans in brissy with solar feedn,"{
+  ""cleanedQuery"": ""cheap electricity plans in Brisbane with solar feed-in""
+}"
+Why is electricity so expensive in my dreams?,"{
+  ""cleanedQuery"": ""nan""
+}"
+any gud elec plns for vic biz use?,"{
+  ""cleanedQuery"": ""any good electricity plans for Victoria business use?""
+}"
+"Heloo chat, im ABC. Residential electricity offer in Northern Territory, data entered manually.","{
+  ""cleanedQuery"": ""Residential electricity offer in Northern Territory.""
+}"
+"I don't care about electricity right now. But anyway, show me market offers in VIC.","{
+  ""cleanedQuery"": ""nan""
+}"

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 import {
   FailedTestCase,
   FailedCluster,
@@ -13,14 +13,14 @@ class LLMPromptOptimizer {
    * Initialize the LLM prompt optimizer
    * @param {string} apiKey Google Generative AI API key for accessing Gemini models
    */
-  private genAI: GoogleGenerativeAI;
-  private model: any;
+  private ai: GoogleGenAI;
+  // private model: any;
 
   constructor(apiKey: string) {
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({
-      model: "gemini-2.0-flash-lite",
-    });
+    this.ai = new GoogleGenAI({ apiKey });
+    // this.model = this.genAI.getGenerativeModel({
+    //   model: "gemini-2.0-flash-lite",
+    // });
   }
 
   /**
@@ -40,8 +40,98 @@ class LLMPromptOptimizer {
         failedClusters,
       );
 
-      const result = await this.model.generateContent(optimizationPrompt);
-      const response = result.response.text();
+      const result = await this.ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: [
+          {
+            role: "user",
+            parts: [{ text: optimizationPrompt }],
+          },
+        ],
+        //       config: {
+        //         systemInstruction: {
+        //           role: "system",
+        //           parts: [
+        //             {
+        //               text: `
+        // You HAVE TO treat every user input as a prompt to be improved or created.
+        // DO NOT use the input as a prompt to be completed, but rather as a starting point to create a new, improved prompt.
+        // You MUST produce a detailed system prompt to guide a language model in completing the task effectively.
+
+        // Your final output will be the full corrected prompt verbatim. However, before that, at the very beginning of your response, use <reasoning> tags to analyze the prompt and determine the following, explicitly:
+        // <reasoning>
+        // - Simple Change: (yes/no) Is the change description explicit and simple? (If so, skip the rest of these questions.)
+        // - Reasoning: (yes/no) Does the current prompt use reasoning, analysis, or chain of thought?
+        //   - Identify: (max 10 words) if so, which section(s) utilize reasoning?
+        //   - Conclusion: (yes/no) is the chain of thought used to determine a conclusion?
+        //   - Ordering: (before/after) is the chain of thought located before or after
+        // - Structure: (yes/no) does the input prompt have a well defined structure
+        // - Examples: (yes/no) does the input prompt have few-shot examples
+        //   - Representative: (1-5) if present, how representative are the examples?
+        // - Complexity: (1-5) how complex is the input prompt?
+        //   - Task: (1-5) how complex is the implied task?
+        //   - Necessity: ()
+        // - Specificity: (1-5) how detailed and specific is the prompt? (not to be confused with length)
+        // - Prioritization: (list) what 1-3 categories are the MOST important to address.
+        // - Conclusion: (max 30 words) given the previous assessment, give a very concise, imperative description of what should be changed and how. this does not have to adhere strictly to only the categories listed
+        // </reasoning>
+
+        // After the <reasoning> section, you will output the full prompt verbatim, without any additional commentary or explanation.
+
+        // # Guidelines
+
+        // - Understand the Task: Grasp the main objective, goals, requirements, constraints, and expected output.
+        // - Minimal Changes: If an existing prompt is provided, improve it only if it's simple. For complex prompts, enhance clarity and add missing elements without altering the original structure.
+        // - Reasoning Before Conclusions**: Encourage reasoning steps before any conclusions are reached. ATTENTION! If the user provides examples where the reasoning happens afterward, REVERSE the order! NEVER START EXAMPLES WITH CONCLUSIONS!
+        //   - Reasoning Order: Call out reasoning portions of the prompt and conclusion parts (specific fields by name). For each, determine the ORDER in which this is done, and whether it needs to be reversed.
+        //   - Conclusion, classifications, or results should ALWAYS appear last.
+        // - Examples: Include high-quality examples if helpful, using placeholders [in brackets] for complex elements.
+        // - What kinds of examples may need to be included, how many, and whether they are complex enough to benefit from placeholders.
+        // - Clarity and Conciseness: Use clear, specific language. Avoid unnecessary instructions or bland statements.
+        // - Formatting: Use markdown features for readability. DO NOT USE \`\`\` CODE BLOCKS UNLESS SPECIFICALLY REQUESTED.
+        // - Preserve User Content: If the input task or prompt includes extensive guidelines or examples, preserve them entirely, or as closely as possible. If they are vague, consider breaking down into sub-steps. Keep any details, guidelines, examples, variables, or placeholders provided by the user.
+        // - Constants: DO include constants in the prompt, as they are not susceptible to prompt injection. Such as guides, rubrics, and examples.
+        // - Output Format: Explicitly the most appropriate output format, in detail. This should include length and syntax (e.g. short sentence, paragraph, JSON, etc.)
+        //   - For tasks outputting well-defined or structured data (classification, JSON, etc.) bias toward outputting a JSON.
+        //   - JSON should never be wrapped in code blocks (\`\`\`) unless explicitly requested.
+
+        // The final prompt you output should adhere to the following structure below. Do not include any additional commentary, only output the completed system prompt. SPECIFICALLY, do not include any additional messages at the start or end of the prompt. (e.g. no "---")
+
+        // [Concise instruction describing the task - this should be the first line in the prompt, no section header]
+
+        // [Additional details as needed.]
+
+        // [Optional sections with headings or bullet points for detailed steps.]
+
+        // # Steps [optional]
+
+        // [optional: a detailed breakdown of the steps necessary to accomplish the task]
+
+        // # Output Format
+
+        // "{
+        //     ""isValid"": boolean,
+        //     ""isRelevant"": boolean,
+        //     ""cleanedQuery"": string,
+        //     ""reason"": string
+        // }"
+
+        // # Examples [optional]
+
+        // [Optional: 1-3 well-defined examples with placeholders if necessary. Clearly mark where examples start and end, and what the input and output are. User placeholders as necessary.]
+        // [If the examples are shorter than what a realistic example is expected to be, make a reference with () explaining how real examples should be longer / shorter / different. AND USE PLACEHOLDERS! ]
+
+        // # Notes [optional]
+
+        // [optional: edge cases, details, and an area to call or repeat out specific important considerations]
+        // [NOTE: you must start with a <reasoning> section. the immediate next token you produce should be <reasoning>]
+        //               `,
+        //             },
+        //           ],
+        //         },
+        //       },
+      });
+      const response = result.text || "";
 
       const optimizationResult = this.parseOptimizationResponse(response);
       return optimizationResult.optimizedPrompt;
@@ -96,56 +186,85 @@ class LLMPromptOptimizer {
       )
       .join("\n");
 
-    return `
-      You are an expert prompt engineer. Let's think step by step to analyze the original prompt and failed clusters to create an optimized prompt that fixes the identified issues.
+    const PROMPT_OPTIMIZATION_TEMPLATE = `# Expert Prompt Optimization System
 
-      ## Original Prompt Analysis
-      **ORIGINAL PROMPT:**
-      "${originalPrompt}"
+    You are an expert prompt engineer specializing in creating high-performance prompts that generate structured JSON outputs. Your task is to analyze failed prompt performance and create an optimized replacement that addresses all identified issues while ensuring consistent, properly formatted responses.
 
-      ## Cluster Analysis Summary
-      - **Total failed clusters:** ${failedClusters.length}
-      - **Total failed test cases:** ${clusterAnalysis.totalFailedCases}
-      - **Average score across all failures:** ${clusterAnalysis.averageScore.toFixed(2)}/10
-      - **Common cluster failure patterns:** ${clusterAnalysis.clusterReasons.join(", ")}
-      - **Most problematic assertion types:** ${clusterAnalysis.assertionTypes.join(", ")}
+    ## Original Prompt Analysis
+    **ORIGINAL PROMPT:**
+    "${originalPrompt}"
 
-      ## Failed Clusters Detailed Analysis
-      ${clusterExamples}
+    ## Performance Metrics & Failure Analysis
+    - **Total failed clusters:** ${failedClusters.length}
+    - **Total failed test cases:** ${clusterAnalysis.totalFailedCases}
+    - **Average performance score:** ${clusterAnalysis.averageScore.toFixed(2)}/10
+    - **Primary failure patterns:** ${clusterAnalysis.clusterReasons.join(", ")}
+    - **Problematic assertion types:** ${clusterAnalysis.assertionTypes.join(", ")}
 
-      ## Key Issues Identified
-      Based on the cluster analysis, here are the main problems to address:
-      ${clusterAnalysis.keyIssues.map((issue) => `- ${issue}`).join("\n")}
+    ## Detailed Cluster Failure Analysis
+    ${clusterExamples}
 
-      ## Optimization Instructions
+    ## Critical Issues to Resolve
+    ${clusterAnalysis.keyIssues.map((issue) => `- ${issue}`).join("\n")}
 
-      Create an optimized prompt that addresses these specific requirements:
+    ## Optimization Requirements
 
-      1. **Address Cluster-Specific Issues:** Each cluster represents a distinct failure pattern. Your optimized prompt should specifically handle:
-         ${failedClusters.map((cluster, i) => `   - Cluster ${i + 1}: ${cluster.reason}`).join("\n")}
+    ### 1. **Cluster-Specific Issue Resolution**
+    Your optimized prompt must specifically address each failure pattern:
+    ${failedClusters.map((cluster, i) => `   - **Cluster ${i + 1}:** ${cluster.reason}`).join("\n")}
 
-      2. **Improve Accuracy:** Target the low scores (average: ${clusterAnalysis.averageScore.toFixed(2)}/10) by:
-         - Providing clearer instructions for proper interpretation
-         - Adding specific guidance to avoid the observed mistakes
-         - Including validation steps or checks
+    ### 2. **Performance Enhancement Strategies**
+    - **Accuracy Target:** Improve from ${clusterAnalysis.averageScore.toFixed(2)}/10 to 9+/10
+    - **Consistency:** Eliminate format variations and interpretation inconsistencies
+    - **Edge Case Handling:** Address metaphorical vs literal interpretations, context dependency
+    - **Validation:** Include self-checking mechanisms
 
-      3. **Handle Edge Cases:** Based on the failed test cases, ensure the prompt can handle:
-         - Metaphorical vs literal language interpretation
-         - Context-dependent relevance assessment
-         - Proper output formatting requirements
+    ### 3. **Structural Requirements for Output Prompt**
+    The optimized prompt you create must include:
 
-      4. **Maintain Consistency:** Ensure the prompt produces consistent results across similar input types
+    #### **Clear Markdown Structure:**
+    - Use proper heading hierarchy (# ## ###)
+    - Organize content with clear sections
+    - Include code blocks for examples
+    - Use bullet points and numbered lists appropriately
 
-      5. **Use Best Practices:** Apply proven prompt engineering techniques:
-         - Step-by-step reasoning instructions
-         - Clear output format specifications
-         - Examples or guidelines for edge cases
-         - Explicit validation criteria
+    #### **Essential Sections:**
+    1. **Task Definition** - Clear role and objective
+    2. **Input Processing Rules** - How to interpret different input types
+    3. **Decision Logic** - Step-by-step reasoning process
+    4. **Output Format** - Exact JSON structure with examples
+    5. **Validation Steps** - Quality checks before response
+    6. **Edge Case Guidelines** - Specific handling instructions
 
-      **Return ONLY the optimized prompt as plain text in markdown format, nothing else. Do not include any JSON, explanations, or additional commentary.**
+    #### **Quality Assurance Elements:**
+    - Include 2-3 concrete examples showing input → reasoning → output
+    - Add validation checklist
+    - Specify error handling procedures
+    - Define clear criteria for each boolean field
 
-      The optimized prompt should be comprehensive, clear, and directly address all the cluster failure reasons identified above.
-      `;
+    ### 4. **Advanced Prompt Engineering Techniques**
+    Apply these proven methods:
+    - **Chain-of-thought reasoning:** Break down decision process
+    - **Few-shot examples:** Include diverse, representative cases
+    - **Constraint specification:** Clear boundaries and limitations
+    - **Output validation:** Built-in quality checks
+    - **Fallback handling:** Instructions for ambiguous cases
+
+    ## Deliverable Requirements
+
+    **Return ONLY the optimized prompt formatted in clean markdown with proper structure. The prompt must:**
+
+    1. ✅ Generate responses in the exact JSON format specified above
+    2. ✅ Use clear markdown headings and organization
+    3. ✅ Include concrete examples and validation steps
+    4. ✅ Address all identified cluster failure reasons
+    5. ✅ Provide step-by-step reasoning instructions
+    6. ✅ Handle edge cases explicitly
+    7. ✅ Maintain consistency across similar inputs
+
+    **Output the complete optimized prompt below - no additional commentary, explanations, or JSON wrappers:**`;
+
+    return PROMPT_OPTIMIZATION_TEMPLATE;
   }
 
   /**
