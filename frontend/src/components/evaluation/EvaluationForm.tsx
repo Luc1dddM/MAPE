@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQuery } from "@tanstack/react-query";
@@ -104,20 +104,20 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
   });
 
   // Set default values when data loads
-  React.useEffect(() => {
+  useEffect(() => {
     if (providersData?.data.providers) {
       setValue(
         "providers",
-        providersData.data.providers.map((provider: any) => provider.id)
+        providersData.data.providers.map((provider: any) => provider.id),
       );
     }
   }, [providersData, setValue]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (criteriaData?.data.criteria) {
       setValue(
         "evaluationCriteria",
-        criteriaData.data.criteria.map((criteria: any) => criteria.name)
+        criteriaData.data.criteria.map((criteria: any) => criteria.name),
       );
     }
   }, [criteriaData, setValue]);
@@ -143,7 +143,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
       // Ensure providers is always an array of strings (provider IDs)
       const selectedProviders: string[] = Array.isArray(data.providers)
         ? data.providers.filter(
-            (p: any) => typeof p === "string" && p.length > 0
+            (p: any) => typeof p === "string" && p.length > 0,
           )
         : [];
 
@@ -200,6 +200,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
       // Always use the file upload endpoint now
       const response = await evaluationService.runEvaluationWithFile(formData);
 
+      console.log(response.data);
       if (response.success && response.data) {
         toast.success("Evaluation started successfully!");
         onEvaluationStart({
@@ -238,7 +239,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
         const isValid = (formMethods as any).isTestStepValid();
         if (!isValid) {
           toast.error(
-            "Please provide test cases either manually or upload a CSV file."
+            "Please provide test cases either manually or upload a CSV file.",
           );
           return false;
         }
@@ -254,7 +255,7 @@ export const EvaluationForm: React.FC<EvaluationFormProps> = ({
 
         if (!hasTestCases && !hasCSVFile) {
           toast.error(
-            "Please provide test cases either manually or upload a CSV file."
+            "Please provide test cases either manually or upload a CSV file.",
           );
           return false;
         }
