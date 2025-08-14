@@ -38,7 +38,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
 
             <div className="flex items-center space-x-4">
               <a
-                href="https://github.com/yourusername/mape"
+                href="https://github.com/Luc1dddM/MAPE"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-gray-400 hover:text-gray-600"
